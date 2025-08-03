@@ -1,0 +1,29 @@
+{
+  "name": "auma_dz",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rsahana30/AUMA_DZ.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rsahana30/AUMA_DZ/issues"
+  },
+  "homepage": "https://github.com/rsahana30/AUMA_DZ#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.3",
+    "proxy": "http://localhost:5000",
+
+    "nodemon": "^3.1.10"
+  }
+}
