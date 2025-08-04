@@ -7,6 +7,8 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 import PrivateRoute from "./components/PrivateRoute";
 import RFQ from "./forms/RFQ";
+import RFQDetailPage from "./forms/RFQDetailPage";
+import RFQTable from "./forms/RFQTable";
 
 const App = () => (
   <Router>
@@ -20,6 +22,8 @@ const App = () => (
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
           <Route path="/" element={<h2>Welcome to Dashboard</h2>} />
           <Route path="/rfq" element={<RFQ/>} />
+          <Route path="/" element={<RFQTable/>} />
+          <Route path="/rfq/:rfqNo" element={<RFQDetailPage/>} />
         </Routes>
       </div>
     </div>
