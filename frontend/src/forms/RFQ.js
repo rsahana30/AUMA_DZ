@@ -17,11 +17,27 @@ const RFQ = () => {
     communication: "Communication",
     motorDuty: "Motor Duty",
     actuatorSeries: "Actuator Series",
+    // controllerType: "Controller Type (AM/AC)",
+    // gearBoxLocation: "Gear Box Location",
+    // weatherproofType: "Weatherproof / Explosion Proof",
+    // certification: "Certification Requirement",
+    // painting: "Painting (Standard / Special)",
+  };
+
+  const dropdownLabels = {
     controllerType: "Controller Type (AM/AC)",
     gearBoxLocation: "Gear Box Location",
     weatherproofType: "Weatherproof / Explosion Proof",
     certification: "Certification Requirement",
     painting: "Painting (Standard / Special)",
+  };
+
+  const predefinedValues = {
+    controllerType: ["AM", "AC"],
+    gearBoxLocation: ["Germany", "India", "Korea"],
+    weatherproofType: ["Weatherproof", "Explosion Proof"],
+    certification: ["IP", "ATEX", "IECEX", "UL", "FM"],
+    painting: ["Standard", "Special"],
   };
 
   useEffect(() => {
@@ -141,6 +157,24 @@ const RFQ = () => {
               </div>
             ))}
 
+          {Object.keys(dropdownLabels).map((field) => (
+            <div className="col-md-4 mb-3" key={field}>
+              <label className="form-label">{dropdownLabels[field]}</label>
+              <select
+                className="form-select"
+                name={field}
+                onChange={handleDropdownChange}
+              >
+                <option value="">Select {dropdownLabels[field]}</option>
+                {predefinedValues[field].map((value, idx) => (
+                  <option key={idx} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+
           <div className="col-12 mt-3">
             <button className="btn btn-success px-4" onClick={handleSubmit}>
               Submit RFQ
@@ -148,7 +182,7 @@ const RFQ = () => {
           </div>
         </div>
       )}
-<RFQTable/>
+      <RFQTable />
       <ToastContainer />
     </div>
   );
