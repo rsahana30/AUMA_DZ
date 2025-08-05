@@ -7,7 +7,7 @@ require("dotenv").config();
 
 // Signup
 router.post("/signup", (req, res) => {
-  const { email, password } = req.body;
+  const { name, email, password } = req.body;
   const hash = bcrypt.hashSync(password, 10);
 
   const query = "INSERT INTO users (email, password) VALUES (?, ?)";
@@ -29,7 +29,7 @@ router.post("/login", (req, res) => {
     const isMatch = bcrypt.compareSync(password, user.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ name: user.name, id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
     res.json({ token });
   });
 });
