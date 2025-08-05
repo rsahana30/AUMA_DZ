@@ -138,5 +138,52 @@ router.put("/update-valve-row/:id", (req, res) => {
   );
 });
 
+router.post("/get-matching-models", (req, res) => {
+  const {
+    valveType,
+    valveTorque,
+    actuatorVoltage,
+    gearBoxLocation,
+    motorDuty,
+    controllerType,
+    weatherproofType,
+    certification
+  } = req.body;
+
+  const query = `
+    SELECT DISTINCT auma_model FROM valve_data
+    WHERE
+      (valveType = ? OR ? IS NULL OR ? = '') AND
+      (valveTorque = ? OR ? IS NULL OR ? = '') AND
+      (actuatorVoltage = ? OR ? IS NULL OR ? = '') AND
+      (gearBoxLocation = ? OR ? IS NULL OR ? = '') AND
+      (motorDuty = ? OR ? IS NULL OR ? = '') AND
+      (controllerType = ? OR ? IS NULL OR ? = '') AND
+      (weatherproofType = ? OR ? IS NULL OR ? = '') AND
+      (certification = ? OR ? IS NULL OR ? = '')
+  `;
+
+  const params = [
+    valveType, valveType, valveType,
+    valveTorque, valveTorque, valveTorque,
+    actuatorVoltage, actuatorVoltage, actuatorVoltage,
+    gearBoxLocation, gearBoxLocation, gearBoxLocation,
+    motorDuty, motorDuty, motorDuty,
+    controllerType, controllerType, controllerType,
+    weatherproofType, weatherproofType, weatherproofType,
+    certification, certification, certification
+  ];
+
+  connection.query(query, params, (err, results) => {
+    if (err) {
+      console.error("Error fetching models:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    res.json(results);
+  });
+});
+
+
+
 
 module.exports = router;
