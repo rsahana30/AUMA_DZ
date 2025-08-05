@@ -14,25 +14,32 @@ import UpdateRFQ from "./forms/UpdateRFQ";
 
 const App = () => (
   <Router>
-    <Navbar />
-    <div className="d-flex">
-      <Sidebar />
-      <div className="flex-grow-1 p-3">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-          <Route path="/" element={<h2>Welcome to Dashboard</h2>} />
-          <Route path="/rfq" element={<RFQ/>} />
-          <Route path="/" element={<RFQTable/>} />
-          <Route path="/rfq/:rfqNo" element={<RFQDetailPage/>} />
-          <Route path="/select-model/:rfqNo" element={<SelectModel />} />
-          <Route path="/update-rfq/:rfqNo" element={<UpdateRFQ/>} />
-
-
-        </Routes>
-      </div>
-    </div>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route
+        path="*"
+        element={
+          <>
+            <Navbar />
+            <div className="d-flex">
+              <Sidebar />
+              <div className="flex-grow-1 p-3">
+                <Routes>
+                  <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+                  <Route path="/" element={<h2>Welcome to Dashboard</h2>} />
+                  <Route path="/rfq" element={<RFQ />} />
+                  <Route path="/" element={<RFQTable />} />
+                  <Route path="/rfq/:rfqNo" element={<RFQDetailPage />} />
+                  <Route path="/select-model/:rfqNo" element={<SelectModel />} />
+                  <Route path="/update-rfq/:rfqNo" element={<UpdateRFQ />} />
+                </Routes>
+              </div>
+            </div>
+          </>
+        }
+      />
+    </Routes>
   </Router>
 );
 
