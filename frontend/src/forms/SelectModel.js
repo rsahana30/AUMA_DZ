@@ -1,4 +1,3 @@
-// src/components/SelectModel.js
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
@@ -28,12 +27,10 @@ const SelectModel = () => {
       const res = await axios.post("http://localhost:5000/api/get-matching-models", {
         valveType: item.valveType,
         valveTorque: item.valveTorque,
-        actuatorVoltage: item.actuatorVoltage,
-        gearBoxLocation: item.gearBoxLocation,
-        motorDuty: item.motorDuty,
-        controllerType: item.controllerType,
+        safetyFactor: item.safetyFactor,
+        topFlange: item.topFlange,
         weatherproofType: item.weatherproofType,
-        certification: item.certification,
+        painting: item.painting,
       });
 
       setMatchingModels(res.data);
@@ -73,11 +70,12 @@ const SelectModel = () => {
       item.actuatorVoltage,
       item.weatherproofType,
       item.certification,
+      item.painting,
       item.auma_model || "Not selected",
     ]);
 
     doc.autoTable({
-      head: [["Item", "Valve Type", "Torque", "Voltage", "Weatherproof", "Certification", "AUMA Model"]],
+      head: [["Item", "Valve Type", "Torque", "Voltage", "Weatherproof", "Certification", "Painting", "AUMA Model"]],
       body: tableData,
       startY: 30,
     });
@@ -100,6 +98,7 @@ const SelectModel = () => {
             <th>Voltage</th>
             <th>Weatherproof</th>
             <th>Certification</th>
+            <th>Painting</th>
             <th>Selected AUMA Model</th>
             <th>Action</th>
           </tr>
@@ -113,6 +112,7 @@ const SelectModel = () => {
               <td>{item.actuatorVoltage}</td>
               <td>{item.weatherproofType}</td>
               <td>{item.certification}</td>
+              <td>{item.painting}</td>
               <td>{item.auma_model || <i>Not selected</i>}</td>
               <td>
                 <Button

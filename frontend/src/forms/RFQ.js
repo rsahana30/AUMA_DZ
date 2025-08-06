@@ -27,7 +27,7 @@ const RFQ = () => {
   const dropdownLabels = {
     controllerType: "Controller Type (AM/AC)",
     gearBoxLocation: "Gear Box Location",
-    weatherproofType: "Weatherproof / Explosion Proof",
+    weatherproofType: "Weather Proof / Explosion Proof",
     certification: "Certification Requirement",
     painting: "Painting (Standard / Special)",
   };

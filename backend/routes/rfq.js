@@ -142,46 +142,56 @@ router.post("/get-matching-models", (req, res) => {
   const {
     valveType,
     valveTorque,
-    actuatorVoltage,
-    gearBoxLocation,
-    motorDuty,
-    controllerType,
+    safetyFactor,
+    topFlange,
     weatherproofType,
-    certification
+    painting
   } = req.body;
 
+  const torque = parseFloat(valveTorque) || 0;
+  const sf = parseFloat(safetyFactor) || 1;
+  const requiredTorque = torque * sf;
+
   const query = `
-    SELECT DISTINCT auma_model FROM valve_data
-    WHERE
-      (valveType = ? OR ? IS NULL OR ? = '') AND
-      (valveTorque = ? OR ? IS NULL OR ? = '') AND
-      (actuatorVoltage = ? OR ? IS NULL OR ? = '') AND
-      (gearBoxLocation = ? OR ? IS NULL OR ? = '') AND
-      (motorDuty = ? OR ? IS NULL OR ? = '') AND
-      (controllerType = ? OR ? IS NULL OR ? = '') AND
-      (weatherproofType = ? OR ? IS NULL OR ? = '') AND
-      (certification = ? OR ? IS NULL OR ? = '')
+    SELECT 
+      valve_type,
+      valve_max_valve_torque,
+      valve_flange_iso5211,
+      gearbox_input_mounting_flange,
+      gearbox_reduction_ratio,
+      gearbox_weight
+    FROM partturn 
+    WHERE LOWER(valve_type) = ?
+      AND valve_max_valve_torque >= ?
+      AND valve_flange_iso5211 LIKE ?
+      AND protection_type = ?
+      AND painting = ?;
   `;
 
-  const params = [
-    valveType, valveType, valveType,
-    valveTorque, valveTorque, valveTorque,
-    actuatorVoltage, actuatorVoltage, actuatorVoltage,
-    gearBoxLocation, gearBoxLocation, gearBoxLocation,
-    motorDuty, motorDuty, motorDuty,
-    controllerType, controllerType, controllerType,
-    weatherproofType, weatherproofType, weatherproofType,
-    certification, certification, certification
-  ];
+  connection.query(
+    query,
+    [
+      valveType.toLowerCase(),
+      requiredTorque,
+      `%${topFlange}%`,
+      weatherproofType,
+      painting
+    ],
+    (err, results) => {
+      if (err) {
+        console.error("🔥 Error fetching matching models:", err);
+        return res.status(500).json({ error: "Failed to fetch matching models" });
+      }
 
-  connection.query(query, params, (err, results) => {
-    if (err) {
-      console.error("Error fetching models:", err);
-      return res.status(500).json({ error: "Database error" });
+      const models = results.map((r) => ({
+        auma_model: `${r.valve_type.toUpperCase()}-${r.valve_max_valve_torque}Nm [${r.gearbox_input_mounting_flange}, Ratio: ${r.gearbox_reduction_ratio}]`
+      }));
+
+      res.json(models);
     }
-    res.json(results);
-  });
+  );
 });
+
 
 
 
