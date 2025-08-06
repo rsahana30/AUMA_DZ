@@ -23,39 +23,43 @@ const RFQTable = () => {
   };
 
   return (
-    <div className="container mt-4">
-      <h4>RFQ List</h4>
-      <Table striped bordered hover responsive>
-        <thead>
-          <tr>
-            <th>RFQ Number</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rfqs.map((rfq, idx) => (
-            <tr key={idx}>
-              <td style={{ fontWeight: "bold" }}>{rfq.rfq_no}</td>
-              <td>
-                <Button
-                  variant="primary"
-                  className="me-2"
-                  onClick={() => handleSelectModel(rfq.rfq_no)}
-                >
-                  Select AUMA Model
-                </Button>
-                <Button
-                  variant="warning"
-                  onClick={() => handleUpdateRFQ(rfq.rfq_no)}
-                >
-                  Update RFQ
-                </Button>
-              </td>
+    <div className="mt-4">
+      <div className="p-4 border rounded shadow-sm bg-white">
+        <h3 className="mb-4 text-primary fw-bold">RFQ List</h3>
+
+        <Table striped bordered hover responsive className="mb-0">
+          <thead className="table-light">
+            <tr>
+              <th>RFQ Number</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </Table>
+          </thead>
+          <tbody>
+            {rfqs.map((rfq, idx) => (
+              <tr key={idx}>
+                <td className="fw-semibold">{rfq.rfq_no}</td>
+                <td>
+                  <Button
+                    variant="primary"
+                    className="me-2"
+                    onClick={() => handleSelectModel(rfq.rfq_no)}
+                  >
+                    Select AUMA Model
+                  </Button>
+                  <Button
+                    variant="warning"
+                    onClick={() => handleUpdateRFQ(rfq.rfq_no)}
+                  >
+                    Update RFQ
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
     </div>
+
   );
 };
 

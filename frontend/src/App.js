@@ -22,10 +22,10 @@ const App = () => (
         path="*"
         element={
           <>
-            <Navbar />
             <div className="d-flex">
               <Sidebar />
               <div className="flex-grow-1 p-3">
+                <Navbar />
                 <Routes>
                   <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
                   <Route path="/" element={<h2>Welcome to Dashboard</h2>} />

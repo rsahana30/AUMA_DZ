@@ -104,87 +104,87 @@ const RFQ = () => {
   };
 
   return (
-    <div className="container p-4 border rounded shadow-sm bg-light">
-      <h3 className="mb-4 text-primary">RFQ Upload</h3>
+    <>
+      <div className="">
+        <div className="p-4 border rounded shadow-sm bg-white">
+          <h3 className="mb-4 text-primary fw-bold">RFQ Upload</h3>
 
-      {/* Customer Dropdown */}
-      <div className="row mb-3">
-        <div className="col-md-6">
-          <label className="form-label fw-bold">{fieldLabels.customer}</label>
-          <select
-            className="form-select"
-            name="customer"
-            onChange={handleDropdownChange}
-          >
-            <option value="">Select Customer</option>
-            {customerOptions.map((name, idx) => (
-              <option key={idx} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Excel Upload */}
-      <div className="row mb-4">
-        <div className="col-md-6">
-          <label className="form-label fw-bold">Upload Excel Sheet</label>
-          <input
-            type="file"
-            accept=".xlsx, .xls"
-            className="form-control"
-            onChange={handleFileUpload}
-          />
-        </div>
-      </div>
-
-      {/* Additional Manual Inputs */}
-      {dropdowns.customer && excelUploaded && (
-        <div className="row">
-          {Object.keys(fieldLabels)
-            .filter((field) => field !== "customer")
-            .map((field) => (
-              <div className="col-md-4 mb-3" key={field}>
-                <label className="form-label">{fieldLabels[field]}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name={field}
-                  onChange={handleDropdownChange}
-                  placeholder={`Enter ${fieldLabels[field]}`}
-                />
-              </div>
-            ))}
-
-          {Object.keys(dropdownLabels).map((field) => (
-            <div className="col-md-4 mb-3" key={field}>
-              <label className="form-label">{dropdownLabels[field]}</label>
+          {/* Customer Dropdown and Excel Upload */}
+          <div className="row mb-4">
+            <div className="col-md-6 ps-4">
+              <label className="form-label fw-bold">{fieldLabels.customer}</label>
               <select
                 className="form-select"
-                name={field}
+                name="customer"
                 onChange={handleDropdownChange}
               >
-                <option value="">Select {dropdownLabels[field]}</option>
-                {predefinedValues[field].map((value, idx) => (
-                  <option key={idx} value={value}>
-                    {value}
+                <option value="">Select Customer</option>
+                {customerOptions.map((name, idx) => (
+                  <option key={idx} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
             </div>
-          ))}
-
-          <div className="col-12 mt-3">
-            <button className="btn btn-success px-4" onClick={handleSubmit}>
-              Submit RFQ
-            </button>
+            <div className="col-md-6 pe-4">
+              <label className="form-label fw-bold">Upload Excel Sheet</label>
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                className="form-control"
+                onChange={handleFileUpload}
+              />
+            </div>
           </div>
+
+          {dropdowns.customer && excelUploaded && (
+            <div className="row">
+              {Object.keys(fieldLabels)
+                .filter((field) => field !== "customer")
+                .map((field) => (
+                  <div className="col-md-4 mb-3 px-4" key={field}>
+                    <label className="form-label fw-bold">{fieldLabels[field]}</label>
+                    <input
+                      type="text"
+                      className="form-control fw-light"
+                      name={field}
+                      onChange={handleDropdownChange}
+                      placeholder={`Enter ${fieldLabels[field]}`}
+                    />
+                  </div>
+                ))}
+
+              {Object.keys(dropdownLabels).map((field) => (
+                <div className="col-md-4 mb-3 px-4" key={field}>
+                  <label className="form-label fw-bold">{dropdownLabels[field]}</label>
+                  <select
+                    className="form-select fw-light"
+                    name={field}
+                    onChange={handleDropdownChange}
+                  >
+                    <option value="">Select {dropdownLabels[field]}</option>
+                    {predefinedValues[field].map((value, idx) => (
+                      <option key={idx} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+
+              <div className="col-12 mt-3 px-4">
+                <button className="btn btn-success px-4" onClick={handleSubmit}>
+                  Submit RFQ
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
-      )}
+      </div>
       <RFQTable />
       <ToastContainer />
-    </div>
+    </>
   );
 };
 
