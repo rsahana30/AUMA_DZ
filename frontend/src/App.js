@@ -11,6 +11,7 @@ import RFQDetailPage from "./forms/RFQDetailPage";
 import RFQTable from "./forms/RFQTable";
 import SelectModel from "./forms/SelectModel";
 import UpdateRFQ from "./forms/UpdateRFQ";
+import Quotation from "./forms/Quotation";
 
 const App = () => (
   <Router>
@@ -33,6 +34,8 @@ const App = () => (
                   <Route path="/rfq/:rfqNo" element={<RFQDetailPage />} />
                   <Route path="/select-model/:rfqNo" element={<SelectModel />} />
                   <Route path="/update-rfq/:rfqNo" element={<UpdateRFQ />} />
+                  <Route path="/quotation/:rfqNo" element={<Quotation/>} />
+
                 </Routes>
               </div>
             </div>

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { Table, Button, Modal, Spinner } from "react-bootstrap";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable"; // ✅ Important: import separately!
 
 const SelectModel = () => {
   const { rfqNo } = useParams();
@@ -48,7 +48,6 @@ const SelectModel = () => {
       alert(`AUMA Model "${model}" assigned to item ${selectedItem.item}`);
       setShowModal(false);
 
-      // Refresh lineItems
       const res = await axios.get(`http://localhost:5000/api/rfq-details/${rfqNo}`);
       setLineItems(res.data);
     } catch (err) {
@@ -59,7 +58,6 @@ const SelectModel = () => {
 
   const handleConvertToQuotation = () => {
     const doc = new jsPDF();
-
     doc.setFontSize(16);
     doc.text(`Quotation for RFQ: ${rfqNo}`, 14, 20);
 
@@ -74,7 +72,7 @@ const SelectModel = () => {
       item.auma_model || "Not selected",
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [["Item", "Valve Type", "Torque", "Voltage", "Weatherproof", "Certification", "Painting", "AUMA Model"]],
       body: tableData,
       startY: 30,
@@ -154,15 +152,17 @@ const SelectModel = () => {
         </Modal.Body>
       </Modal>
 
-      {/* Convert to Quotation Button */}
       <div className="text-end mt-3">
         <Button
           variant="success"
           onClick={handleConvertToQuotation}
           disabled={lineItems.some(item => !item.auma_model)}
         >
-          Convert to Quotation
+          Convert to Quotation (PDF)
         </Button>
+        <Link to={`/quotation/${rfqNo}`}>
+          <Button variant="secondary" className="ms-2">View Full Quotation</Button>
+        </Link>
       </div>
     </div>
   );
