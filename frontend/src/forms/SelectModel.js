@@ -114,7 +114,7 @@ const SelectModel = () => {
               <td>{item.auma_model || <i>Not selected</i>}</td>
               <td>
                 <Button
-                  variant="info"
+                  variant="primary"
                   size="sm"
                   onClick={() => fetchMatchingModels(item)}
                 >
@@ -161,7 +161,7 @@ const SelectModel = () => {
           Convert to Quotation (PDF)
         </Button>
         <Link to={`/quotation/${rfqNo}`}>
-          <Button variant="secondary" className="ms-2">View Full Quotation</Button>
+          <Button variant="primary" className="ms-2">View Full Quotation</Button>
         </Link>
       </div>
     </div>

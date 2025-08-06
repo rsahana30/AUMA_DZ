@@ -4,8 +4,6 @@ const Sidebar = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: "/", label: "Dashboard" },
-    { path: "/profile", label: "Profile" },
     { path: "/rfq", label: "RFQ" },
   ];
 

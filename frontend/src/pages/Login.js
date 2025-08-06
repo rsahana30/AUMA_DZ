@@ -15,7 +15,7 @@ const Login = () => {
         password,
       });
       localStorage.setItem("token", res.data.token);
-      navigate("/profile");
+      navigate("/rfq");
     } catch (err) {
       alert("Login failed");
     }
