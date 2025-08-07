@@ -4,7 +4,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: "/rfq", label: "RFQ" },
+    { path: "/rfq", label: "Quotation Management" },
   ];
 
   return (

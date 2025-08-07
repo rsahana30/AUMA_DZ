@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import axios from "axios";
-import { Table, Button, Modal, Spinner } from "react-bootstrap";
+import { Table, Button, Modal, Spinner, Alert } from "react-bootstrap";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // ✅ Important: import separately!
+import autoTable from "jspdf-autotable";
 
-const SelectModel = () => {
-  const { rfqNo } = useParams();
+const SelectModel = ({ rfqNo }) => {
   const [lineItems, setLineItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [matchingModels, setMatchingModels] = useState([]);
@@ -14,6 +13,7 @@ const SelectModel = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!rfqNo) return;
     axios
       .get(`http://localhost:5000/api/rfq-details/${rfqNo}`)
       .then((res) => setLineItems(res.data))
@@ -81,89 +81,117 @@ const SelectModel = () => {
     doc.save(`Quotation_${rfqNo}.pdf`);
   };
 
-  if (loading) return <div className="text-center mt-5"><Spinner animation="border" /></div>;
+  if (loading) {
+    return (
+      <div className="text-center my-5">
+        <Spinner animation="border" role="status" />
+        <div className="mt-2">Loading RFQ Details...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mt-4">
-      <h4>Select AUMA Model for RFQ: <strong>{rfqNo}</strong></h4>
+    <div className="card shadow-sm mt-4">
+      <div className="card-body">
+        <h4 className="fw-bold text-primary mb-4">
+          Select AUMA Models for RFQ: <span className="text-dark">{rfqNo}</span>
+        </h4>
 
-      <Table striped bordered responsive>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Valve Type</th>
-            <th>Torque</th>
-            <th>Voltage</th>
-            <th>Weatherproof</th>
-            <th>Certification</th>
-            <th>Painting</th>
-            <th>Selected AUMA Model</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lineItems.map((item, idx) => (
-            <tr key={idx}>
-              <td>{item.item}</td>
-              <td>{item.valveType}</td>
-              <td>{item.valveTorque}</td>
-              <td>{item.actuatorVoltage}</td>
-              <td>{item.weatherproofType}</td>
-              <td>{item.certification}</td>
-              <td>{item.painting}</td>
-              <td>{item.auma_model || <i>Not selected</i>}</td>
-              <td>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => fetchMatchingModels(item)}
-                >
-                  Select Model
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+        {lineItems.length === 0 ? (
+          <Alert variant="warning">No valve items found for this RFQ.</Alert>
+        ) : (
+          <div className="table-responsive">
+            <Table striped bordered hover>
+              <thead className="table-light">
+                <tr>
+                  <th>Item</th>
+                  <th>Valve Type</th>
+                  <th>Torque</th>
+                  <th>Voltage</th>
+                  <th>Weatherproof</th>
+                  <th>Certification</th>
+                  <th>Painting</th>
+                  <th>AUMA Model</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((item, idx) => (
+                  <tr key={idx}>
+                    <td>{item.item}</td>
+                    <td>{item.valveType}</td>
+                    <td>{item.valveTorque}</td>
+                    <td>{item.actuatorVoltage}</td>
+                    <td>{item.weatherproofType}</td>
+                    <td>{item.certification}</td>
+                    <td>{item.painting}</td>
+                    <td className="fw-semibold">
+                      {item.auma_model || <span className="text-muted fst-italic">Not selected</span>}
+                    </td>
+                    <td>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => fetchMatchingModels(item)}
+                      >
+                        Select Model
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
 
-      {/* Matching Model Modal */}
+        <div className="text-end mt-4">
+          <Button
+            variant="success"
+            onClick={handleConvertToQuotation}
+            disabled={lineItems.some(item => !item.auma_model)}
+          >
+            <i className="bi bi-file-earmark-pdf me-2" />
+            Convert to Quotation (PDF)
+          </Button>
+
+          <Link to={`/quotation/${rfqNo}`}>
+            <Button variant="primary" className="ms-2">
+              <i className="bi bi-eye me-2" />
+              View Full Quotation
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Modal for Selecting AUMA Model */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered>
         <Modal.Header closeButton>
-          <Modal.Title>Select AUMA Model</Modal.Title>
+          <Modal.Title>Select Matching AUMA Model</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {matchingModels.length > 0 ? (
-            <ul className="list-group">
+            <div className="list-group">
               {matchingModels.map((m, i) => (
-                <li
+                <div
                   key={i}
                   className="list-group-item d-flex justify-content-between align-items-center"
                 >
-                  {m.auma_model}
-                  <Button variant="success" size="sm" onClick={() => handleSelectModel(m.auma_model)}>
+                  <div className="fw-bold">{m.auma_model}</div>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => handleSelectModel(m.auma_model)}
+                  >
                     Select
                   </Button>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
-            <p>No matching models found for this line item.</p>
+            <Alert variant="info">No matching models found for this item.</Alert>
           )}
         </Modal.Body>
       </Modal>
-
-      <div className="text-end mt-3">
-        <Button
-          variant="success"
-          onClick={handleConvertToQuotation}
-          disabled={lineItems.some(item => !item.auma_model)}
-        >
-          Convert to Quotation (PDF)
-        </Button>
-        <Link to={`/quotation/${rfqNo}`}>
-          <Button variant="primary" className="ms-2">View Full Quotation</Button>
-        </Link>
-      </div>
     </div>
   );
 };

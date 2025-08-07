@@ -3,14 +3,15 @@ import * as XLSX from "xlsx";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-
+import SelectModel from "./SelectModel";
 
 const RFQ = () => {
   const [dropdowns, setDropdowns] = useState({});
   const [excelData, setExcelData] = useState([]);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [customerOptions, setCustomerOptions] = useState([]);
-  const simulateRef = useRef(null);
+  const [showSelectModel, setShowSelectModel] = useState(false);
+  const [currentRFQNo, setCurrentRFQNo] = useState(null);
 
   const expectedHeaders = [
     "type",
@@ -56,10 +57,7 @@ const RFQ = () => {
     fetch("http://localhost:5000/api/customers")
       .then((res) => res.json())
       .then((data) => setCustomerOptions(data.customers || []))
-      .catch((err) => {
-        console.error("Failed to load customers", err);
-        toast.error("Failed to load customers");
-      });
+      .catch(() => toast.error("Failed to load customers"));
   }, []);
 
   const handleDropdownChange = (e) => {
@@ -76,14 +74,12 @@ const RFQ = () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      if (rows.length === 0) {
-        toast.error("Excel sheet is empty");
-        return;
-      }
+      if (rows.length === 0) return toast.error("Excel sheet is empty");
 
       const uploadedHeaders = Object.keys(rows[0]).map((key) =>
         key.trim().toLowerCase().replace(/\s+/g, "_")
       );
+
       const expectedTrimmed = expectedHeaders.map((key) =>
         key.trim().toLowerCase()
       );
@@ -92,11 +88,9 @@ const RFQ = () => {
         uploadedHeaders.includes(header)
       );
 
-      if (!isSameFormat) {
-        toast.error("\u26A0\uFE0F Uploaded Excel does not match sample format");
-      } else {
-        toast.success("\u2705 Excel format is valid");
-      }
+      isSameFormat
+        ? toast.success("✅ Excel format is valid")
+        : toast.error("⚠️ Uploaded Excel does not match sample format");
 
       setExcelData(rows);
       setUploadedFile(file);
@@ -120,16 +114,9 @@ const RFQ = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!dropdowns.customer) {
-      toast.error("Please select a customer");
-      return;
-    }
-
-    if (!excelData.length) {
-      toast.error("Please upload an Excel sheet");
-      return;
-    }
+  const handleSave = async () => {
+    if (!dropdowns.customer) return toast.error("Please select a customer");
+    if (!excelData.length) return toast.error("Please upload an Excel sheet");
 
     try {
       const payload = {
@@ -145,163 +132,167 @@ const RFQ = () => {
 
       if (response.ok) {
         const data = await response.json();
-        toast.success(`RFQ submitted: ${data.rfq_no}`);
-        setExcelData([]);
-        setDropdowns({});
-        setUploadedFile(null);
+        setCurrentRFQNo(data.rfq_no);
+        setShowSelectModel(false);
+        toast.success(`✅ RFQ ${data.rfq_no} created successfully!`);
       } else {
-        toast.error("Failed to submit RFQ");
+        toast.error("❌ Failed to create RFQ");
       }
-    } catch (error) {
-      toast.error("An error occurred");
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      toast.error("❌ Server error");
     }
   };
 
   const handleSimulate = () => {
-    toast.info("Simulate clicked");
-    if (simulateRef.current) {
-      simulateRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  const handleSave = () => {
-    toast.success("Saved successfully");
-  };
-
-  const handleEdit = () => {
-    toast.info("Edit mode activated");
+    if (!currentRFQNo) return toast.error("Please save RFQ first");
+    setShowSelectModel(true);
   };
 
   return (
-    <>
-      <div className="p-4 border rounded shadow bg-white">
-        <h3 className="mb-4 text-primary fw-bold">Request For Quotation</h3>
+    <div className="container py-4">
+      <div className="card shadow">
+        <div className="card-body">
+          <h3 className="text-primary fw-bold mb-4">Request For Quotation</h3>
 
-        <div className="row mb-4">
-          <div className="col-md-6 mb-3 ps-4">
-            <label className="form-label fw-bold">{fieldLabels.customer}</label>
-            <select
-              className="form-select"
-              name="customer"
-              onChange={handleDropdownChange}
-              value={dropdowns.customer || ""}
-            >
-              <option value="">Select Customer</option>
-              {customerOptions.map((name, idx) => (
-                <option key={idx} value={name}>{name}</option>
-              ))}
-            </select>
+          {/* Customer & Upload */}
+          <div className="row">
+            <div className="col-md-6 mb-3">
+              <label className="form-label fw-bold">{fieldLabels.customer}</label>
+              <select
+                className="form-select"
+                name="customer"
+                value={dropdowns.customer || ""}
+                onChange={handleDropdownChange}
+              >
+                <option value="">Select Customer</option>
+                {customerOptions.map((name, idx) => (
+                  <option key={idx} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-6 mb-3">
+              <label className="form-label fw-bold">Upload RFQ (Excel)</label>
+              <input
+                type="file"
+                className="form-control"
+                accept=".xlsx, .xls"
+                onClick={(e) => (e.target.value = null)}
+                onChange={handleFileUpload}
+              />
+              {uploadedFile ? (
+                <div className="mt-2 d-flex align-items-center gap-2">
+                  <span>• {uploadedFile.name}</span>
+                  <button className="btn btn-sm btn-outline-primary" onClick={handleDownloadFile}>
+                    <i className="bi bi-download" />
+                  </button>
+                  <button className="btn btn-sm btn-outline-danger" onClick={handleRemoveFile}>
+                    <i className="bi bi-trash" />
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2">
+                  <small>
+                    Need a template? <a href="/sample.xlsx" download>Download sample file</a>
+                  </small>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="col-md-6 mb-3 pe-4">
-            <label className="form-label fw-bold">Upload RFQ (Excel)</label>
-            <input
-              type="file"
-              accept=".xlsx, .xls"
-              className="form-select"
-              onClick={(e) => (e.target.value = null)}
-              onChange={handleFileUpload}
-            />
-            {uploadedFile && (
-              <div className="mt-2 d-flex align-items-center gap-2">
-                <span>• {uploadedFile.name}</span>
-                <button className="btn btn-sm btn-outline-primary" onClick={handleDownloadFile} title="Download file">
-                  <i className="bi bi-download"></i>
-                </button>
-                <button className="btn btn-sm btn-outline-danger" onClick={handleRemoveFile} title="Delete file">
-                  <i className="bi bi-trash"></i>
-                </button>
-              </div>
-            )}
-            {!uploadedFile && (
-              <div className="mt-2">
-                <small>Need a template? <a href="/sample.xlsx" download>Download sample file</a></small>
-              </div>
-            )}
-          </div>
-        </div>
+          {/* Manual Entry Fields */}
+          {dropdowns.customer && excelData.length > 0 && (
+            <>
+              <hr className="my-4" />
+              <div className="row">
+                {Object.keys(fieldLabels)
+                  .filter((f) => f !== "customer")
+                  .map((field) => (
+                    <div className="col-md-4 mb-3" key={field}>
+                      <label className="form-label fw-bold">{fieldLabels[field]}</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name={field}
+                        value={dropdowns[field] || ""}
+                        onChange={handleDropdownChange}
+                        placeholder={`Enter ${fieldLabels[field]}`}
+                      />
+                    </div>
+                  ))}
 
-        {dropdowns.customer && excelData.length > 0 && (
-          <>
-            <div className="row">
-              {Object.keys(fieldLabels)
-                .filter((field) => field !== "customer")
-                .map((field) => (
-                  <div className="col-md-4 mb-3 px-4" key={field}>
-                    <label className="form-label fw-bold">{fieldLabels[field]}</label>
-                    <input
-                      type="text"
-                      className="form-control"
+                {Object.keys(dropdownLabels).map((field) => (
+                  <div className="col-md-4 mb-3" key={field}>
+                    <label className="form-label fw-bold">{dropdownLabels[field]}</label>
+                    <select
+                      className="form-select"
                       name={field}
                       value={dropdowns[field] || ""}
                       onChange={handleDropdownChange}
-                      placeholder={`Enter ${fieldLabels[field]}`}
-                    />
+                    >
+                      <option value="">Select {dropdownLabels[field]}</option>
+                      {predefinedValues[field].map((val, idx) => (
+                        <option key={idx} value={val}>{val}</option>
+                      ))}
+                    </select>
                   </div>
                 ))}
+              </div>
 
-              {Object.keys(dropdownLabels).map((field) => (
-                <div className="col-md-4 mb-3 px-4" key={field}>
-                  <label className="form-label fw-bold">{dropdownLabels[field]}</label>
-                  <select
-                    className="form-select"
-                    name={field}
-                    value={dropdowns[field] || ""}
-                    onChange={handleDropdownChange}
-                  >
-                    <option value="">Select {dropdownLabels[field]}</option>
-                    {predefinedValues[field].map((value, idx) => (
-                      <option key={idx} value={value}>{value}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
-
-            <div ref={simulateRef} className="mt-5">
-              <h5 className="fw-bold">Preview of Uploaded Excel Data</h5>
-              <div className="table-responsive">
-                <table className="table table-bordered table-sm">
-                  <thead className="table-light">
-                    <tr>
-                      {Object.keys(excelData[0]).map((key, idx) => (
-                        <th key={idx}>{key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {excelData.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.values(row).map((val, i) => (
-                          <td key={i}>{val}</td>
+              {/* Excel Table */}
+              <div className="mt-4">
+                <h5 className="fw-bold">Uploaded RFQ File</h5>
+                <div className="table-responsive">
+                  <table className="table table-bordered table-sm">
+                    <thead className="table-light">
+                      <tr>
+                        {Object.keys(excelData[0]).map((key, idx) => (
+                          <th key={idx}>{key}</th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {excelData.map((row, idx) => (
+                        <tr key={idx}>
+                          {Object.values(row).map((val, i) => <td key={i}>{val}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div className="col-12 mt-4 px-4 text-end">
-              <button className="btn btn-primary px-4 me-3" onClick={handleSimulate}>
-                <i className="bi bi-lightning-charge me-2"></i>Simulate
-              </button>
-              <button className="btn btn-success px-4 me-3" onClick={handleSave}>
-                <i className="bi bi-save me-2"></i>Save
-              </button>
-              <button className="btn btn-warning px-4 me-3" onClick={handleEdit}>
-                <i className="bi bi-pencil-square me-2"></i>Edit
-              </button>
-              <button className="btn btn-danger px-4" onClick={handleSubmit}>
-                <i className="bi bi-send me-2"></i>Submit RFQ
-              </button>
+              {/* Action Buttons */}
+              <div className="text-end mt-4">
+                <button className="btn btn-success px-4 me-3" onClick={handleSave}>
+                  <i className="bi bi-save me-2"></i>Save
+                </button>
+                <button className="btn btn-primary px-4" onClick={handleSimulate} disabled={!currentRFQNo}>
+                  <i className="bi bi-lightning-charge me-2"></i>Simulate
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* RFQ Number & SelectModel */}
+          {/* {currentRFQNo && (
+            <div className="alert alert-info mt-5 fs-5 fw-bold">
+              ✅ RFQ Number: <span className="text-primary">{currentRFQNo}</span>
             </div>
-          </>
-        )}
+          )} */}
+
+          {showSelectModel && currentRFQNo && (
+            <div className="mt-4">
+              <h5 className="fw-bold mb-3">Select Matching AUMA Models</h5>
+              <SelectModel rfqNo={currentRFQNo} inline />
+            </div>
+          )}
+        </div>
       </div>
-      <ToastContainer />
-    </>
+
+      <ToastContainer position="top-right" autoClose={3000} />
+    </div>
   );
 };
 

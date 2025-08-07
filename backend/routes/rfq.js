@@ -196,6 +196,49 @@ router.post("/get-matching-models", (req, res) => {
 });
 
 
+router.get("/se-details/:rfqNo", async (req, res) => {
+  const { rfqNo } = req.params;
+  try {
+    const [partturn] = await query("SELECT *, 'partturn' AS type FROM partturn WHERE rfq_no = ?", [rfqNo]);
+    const [multiturn] = await query("SELECT *, 'multiturn' AS type FROM multiturn WHERE rfq_no = ?", [rfqNo]);
+    const [linear] = await query("SELECT *, 'linear' AS type FROM linear_valve WHERE rfq_no = ?", [rfqNo]);
+    const [lever] = await query("SELECT *, 'lever' AS type FROM lever WHERE rfq_no = ?", [rfqNo]);
+
+    res.json([...partturn, ...multiturn, ...linear, ...lever]);
+  } catch (err) {
+    console.error("Error fetching SE details:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+router.post("/auma-models", async (req, res) => {
+  const { valveType, valveTorque, safetyFactor, valve_flange_iso5211 } = req.body;
+  const requiredTorque = valveTorque * safetyFactor;
+
+  try {
+    const [models] = await query(
+      "SELECT * FROM auma_model WHERE type = ? AND torque >= ? AND topFlange = ?",
+      [valveType, requiredTorque, valve_flange_iso5211]
+    );
+    res.json(models);
+  } catch (err) {
+    console.error("Error fetching AUMA models:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+router.post("/submit-se-mapping", async (req, res) => {
+  const { rfqNumber, valveType, valveId, selectedModel, quantity } = req.body;
+
+  try {
+    await query(
+      "INSERT INTO se_mapping (rfq_no, valve_type, valve_row_id, auma_model, quantity, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
+      [rfqNumber, valveType, valveId, selectedModel, quantity]
+    );
+    res.json({ message: "SE mapping submitted successfully" });
+  } catch (err) {
+    console.error("Error submitting SE mapping:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 
 

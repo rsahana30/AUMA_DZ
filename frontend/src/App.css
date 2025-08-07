@@ -36,3 +36,8 @@
     transform: rotate(360deg);
   }
 }
+/* index.css or App.css */
+body {
+  font-family: 'Roboto Condensed', sans-serif;
+}
+

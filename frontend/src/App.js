@@ -4,6 +4,9 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+// index.js or App.js
+import './App.css'; // or './App.css'
+
 import Profile from "./pages/Profile";
 import PrivateRoute from "./components/PrivateRoute";
 import RFQ from "./forms/RFQ";
