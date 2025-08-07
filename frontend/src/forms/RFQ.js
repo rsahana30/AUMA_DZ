@@ -26,6 +26,7 @@ const RFQ = () => {
     "valve_operator",
     "valve_flange_iso5211",
     "valve_max_valve_torque",
+    "quantity"
   ];
 
   const fieldLabels = {
@@ -144,10 +145,42 @@ const RFQ = () => {
     }
   };
 
-  const handleSimulate = () => {
-    if (!currentRFQNo) return toast.error("Please save RFQ first");
-    setShowSelectModel(true);
+  const handleSimulate = async () => {
+    if (!currentRFQNo) {
+      // Trigger save if RFQ not yet generated
+      if (!dropdowns.customer) return toast.error("Please select a customer");
+      if (!excelData.length) return toast.error("Please upload an Excel sheet");
+
+      try {
+        const payload = {
+          manualFields: dropdowns,
+          excelRows: excelData,
+        };
+
+        const response = await fetch("http://localhost:5000/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentRFQNo(data.rfq_no);
+          toast.success(`✅ RFQ ${data.rfq_no} created successfully!`);
+          setShowSelectModel(true);
+        } else {
+          toast.error("❌ Failed to create RFQ");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("❌ Server error");
+      }
+    } else {
+      // RFQ already exists, just show SelectModel
+      setShowSelectModel(true);
+    }
   };
+
 
   return (
     <div className="container py-4">
@@ -265,10 +298,15 @@ const RFQ = () => {
 
               {/* Action Buttons */}
               <div className="text-end mt-4">
-                <button className="btn btn-success px-4 me-3" onClick={handleSave}>
+                <button
+                  className="btn btn-success px-4 me-3"
+                  onClick={handleSave}
+                  disabled={!!currentRFQNo}
+                >
                   <i className="bi bi-save me-2"></i>Save
                 </button>
-                <button className="btn btn-primary px-4" onClick={handleSimulate} disabled={!currentRFQNo}>
+
+                <button className="btn btn-primary px-4" onClick={handleSimulate} >
                   <i className="bi bi-lightning-charge me-2"></i>Simulate
                 </button>
               </div>

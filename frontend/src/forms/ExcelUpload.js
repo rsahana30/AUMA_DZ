@@ -19,7 +19,8 @@ const ExcelUpload = () => {
     "Valve Top Flange PCD (ISO)",
     "Valve Stem Dia (mm)",
     "Valve Mast (Nm)",
-    "Number of turns (for Gate and Globe valves)"
+    "Number of turns (for Gate and Globe valves)",
+    "quantity"
   ];
 
   // Normalize header: remove whitespace, lowercase, remove special characters
