@@ -29,8 +29,8 @@ const App = () => (
                 <Routes>
                   <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
                   {/* <Route path="/" element={<h2>Welcome to Dashboard</h2>} /> */}
-                  <Route path="/rfq" element={<RFQ />} />
-                  <Route path="/" element={<RFQTable />} />
+                   <Route path="/" element={<RFQ />} /> 
+                  <Route path="/rfq" element={<RFQTable />} />
                   <Route path="/rfq/:rfqNo" element={<RFQDetailPage />} />
                   <Route path="/select-model/:rfqNo" element={<SelectModel />} />
                   <Route path="/update-rfq/:rfqNo" element={<UpdateRFQ />} />

@@ -2,6 +2,20 @@ const express = require("express");
 const router = express.Router();
 const connection = require("../db/connection");
 
+//display of rfqs, customer name, created at and submitted by
+router.get('/rfqs', (req, res) => {
+  const sql = 'SELECT DISTINCT rfqs.rfq_no,  rfqs.customer,rfqs.created_at,users.name AS submitted_b FROM rfqs LEFT JOIN users ON rfqs.user_id = users.id ORDER BY rfqs.created_at DESC;';
+
+  connection.query(sql, (error, results, fields) => {
+    if (error) {
+      console.error('Error fetching RFQs:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+
+    // results is an array of rows
+    res.json(results);
+  });
+});
 router.post("/upload", async (req, res) => {
   const { manualFields, excelRows } = req.body;
 
@@ -91,18 +105,7 @@ router.get("/customers", (req, res) => {
 });
 
 // routes/rfq.js
-router.get("/rfqs", (req, res) => {
-  connection.query(
-    `SELECT rfq_no, customer FROM rfqs GROUP BY rfq_no, customer ORDER BY MAX(created_at) DESC`,
-    (err, results) => {
-      if (err) {
-        console.error("Error fetching RFQs:", err);
-        return res.status(500).json({ error: "Server error" });
-      }
-      res.json(results);
-    }
-  );
-});
+
 
 // Get valve rows by RFQ
 router.get("/rfq-details/:rfqNo", (req, res) => {
