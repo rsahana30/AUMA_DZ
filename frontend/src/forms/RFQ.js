@@ -284,7 +284,7 @@ const RFQ = () => {
 
           {showSelectModel && currentRFQNo && (
             <div className="mt-4">
-              <h5 className="fw-bold mb-3">Select Matching AUMA Models</h5>
+              {/* <h5 className="fw-bold mb-3">Select Matching AUMA Models</h5> */}
               <SelectModel rfqNo={currentRFQNo} inline />
             </div>
           )}

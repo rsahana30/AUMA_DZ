@@ -6,35 +6,34 @@ import "react-toastify/dist/ReactToastify.css";
 const ExcelUpload = () => {
   const [excelData, setExcelData] = useState([]);
 
-  // Define expected headers (normalized: lowercase, no space)
+  // Headers must match these (based on sample.xlsx)
   const expectedHeaders = [
-    "item",
-    "valvetype",
-    "valvetagno",
-    "valvesize(inch)",
-    "valverating",
-    "typeofduty(on-off/modulating)",
-    "raisingstemornot",
-    "valvetorque(nm)",
-    "valvetopflangepcd(iso)",
-    "valvestemdia(mm)",
-    "valvemast(nm)",
-    "numberofturns(forgateandglobevalves)"
+    "Item",
+    "Valve Type",
+    "Valve Tag No",
+    "Valve Size(Inch)",
+    "Valve Rating",
+    "Type of Duty (On-Off/Modulating)",
+    "Raising Stem or not",
+    "Valve Torque(Nm)",
+    "Valve Top Flange PCD (ISO)",
+    "Valve Stem Dia (mm)",
+    "Valve Mast (Nm)",
+    "Number of turns (for Gate and Globe valves)"
   ];
 
-  const normalizeHeader = (header) =>
-    header?.toString().toLowerCase().replace(/\s+/g, "").trim();
+  // Normalize header: remove whitespace, lowercase, remove special characters
+  const normalize = (str) =>
+    str.toString().toLowerCase().replace(/\s+/g, "").replace(/[^\w]/gi, "");
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-
     if (!file) {
       toast.error("Please select a file.");
       return;
     }
 
     const reader = new FileReader();
-
     reader.onload = (evt) => {
       const data = new Uint8Array(evt.target.result);
       const workbook = XLSX.read(data, { type: "array" });
@@ -46,22 +45,22 @@ const ExcelUpload = () => {
         return;
       }
 
-      // Normalize uploaded headers
-      const uploadedHeaders = Object.keys(json[0]).map(normalizeHeader);
+      const uploadedHeaders = Object.keys(json[0]).map(normalize);
+      const requiredHeaders = expectedHeaders.map(normalize);
 
-      const missingHeaders = expectedHeaders.filter(
-        (header) => !uploadedHeaders.includes(header)
+      const missing = requiredHeaders.filter(
+        (h) => !uploadedHeaders.includes(h)
       );
 
-      if (missingHeaders.length > 0) {
-        toast.error("Uploaded Excel does not match the required format.");
-        console.error("Missing headers:", missingHeaders);
+      if (missing.length > 0) {
+        toast.error("❌ Uploaded Excel is not in the required format.");
+        console.error("Missing headers:", missing);
         return;
       }
 
-      // If everything is fine
+      // All good
       setExcelData(json);
-      toast.success("Excel uploaded successfully.");
+      toast.success("✅ Excel uploaded successfully.");
     };
 
     reader.readAsArrayBuffer(file);
@@ -72,8 +71,9 @@ const ExcelUpload = () => {
       <h4 className="mb-3">Upload Excel File</h4>
       <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
       <ToastContainer />
-      <div className="mt-4">
-        {excelData.length > 0 && (
+
+      {excelData.length > 0 && (
+        <div className="mt-4">
           <table className="table table-bordered">
             <thead>
               <tr>
@@ -92,8 +92,8 @@ const ExcelUpload = () => {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
