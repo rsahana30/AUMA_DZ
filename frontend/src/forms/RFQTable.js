@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { Table, Button } from "react-bootstrap";
+import { Table, Button, Modal } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import SelectModel from "./SelectModel";  // import SelectModel
+
 
 const RFQTable = () => {
   const [rfqs, setRfqs] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedRFQ, setSelectedRFQ] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetch("http://localhost:5000/api/rfqs")
-      .then(res => res.json())
-      .then(data => {
-        // Debug: ensure response is an array
+      .then((res) => res.json())
+      .then((data) => {
         if (Array.isArray(data)) {
           setRfqs(data);
         } else if (data?.rfqs) {
@@ -20,7 +23,7 @@ const RFQTable = () => {
           console.error("Unexpected API response format:", data);
         }
       })
-      .catch(err => console.error("Error fetching RFQs:", err));
+      .catch((err) => console.error("Error fetching RFQs:", err));
   }, []);
 
   const formatDate = (isoString) => {
@@ -30,7 +33,17 @@ const RFQTable = () => {
   };
 
   const handleCreateNewRFQ = () => {
-    navigate("/"); // Adjust this path if your RFQ creation component uses a different route
+    navigate("/");
+  };
+
+  const handleRFQClick = (rfq) => {
+    setSelectedRFQ(rfq);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedRFQ(null);
   };
 
   return (
@@ -55,7 +68,11 @@ const RFQTable = () => {
             {Array.isArray(rfqs) && rfqs.length > 0 ? (
               rfqs.map((rfq, idx) => (
                 <tr key={idx}>
-                  <td className="fw-semibold">{rfq.rfq_no}</td>
+                  <td className="fw-semibold">
+                    <Button variant="link" onClick={() => handleRFQClick(rfq)} style={{ padding: 0 }}>
+                      {rfq.rfq_no}
+                    </Button>
+                  </td>
                   <td>{rfq.customer}</td>
                   <td>{formatDate(rfq.created_at)}</td>
                   <td>{rfq.submitted_by || "-"}</td>
@@ -63,13 +80,23 @@ const RFQTable = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="text-center">
-                  No RFQ data available.
-                </td>
+                <td colSpan={4} className="text-center">No RFQ data available.</td>
               </tr>
             )}
           </tbody>
         </Table>
+
+        {/* Show SelectModel component in modal when an RFQ is selected */}
+        <Modal size="lg" show={showModal} onHide={handleCloseModal} dialogClassName="modal-90w" aria-labelledby="select-model-modal">
+          <Modal.Header closeButton>
+            <Modal.Title id="select-model-modal">
+              {selectedRFQ ? `Select Model for RFQ: ${selectedRFQ.rfq_no}` : "Select Model"}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            {selectedRFQ && <SelectModel rfqNo={selectedRFQ.rfq_no} />}
+          </Modal.Body>
+        </Modal>
       </div>
     </div>
   );

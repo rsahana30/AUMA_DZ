@@ -5,6 +5,7 @@ const Sidebar = () => {
 
   const navItems = [
     { path: "/rfq", label: "Quotation Management" },
+    { path: "/product", label: "Product Management" },
   ];
 
   return (
