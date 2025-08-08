@@ -1,26 +1,74 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import axios from "axios";
-import { Table, Button, Modal, Spinner, Alert } from "react-bootstrap";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { Table, Button, Modal, Spinner } from "react-bootstrap";
 
 const SelectModel = ({ rfqNo }) => {
   const [lineItems, setLineItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [matchingModels, setMatchingModels] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedModelsMap, setSelectedModelsMap] = useState({});
+  const [quotationNumber, setQuotationNumber] = useState(null);
+  const [loadingQuotation, setLoadingQuotation] = useState(false);
 
+  // Load RFQ items on mount or when rfqNo changes
   useEffect(() => {
     if (!rfqNo) return;
+    setLoading(true);
     axios
       .get(`http://localhost:5000/api/rfq-details/${rfqNo}`)
-      .then((res) => setLineItems(res.data))
-      .catch((err) => console.error("Error loading RFQ details", err))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        setLineItems(res.data);
+        setLoading(false);
+        // After loading line items, set default models for those without a selected model
+        autoSelectDefaultModels(res.data);
+      })
+      .catch((err) => {
+        alert("Failed to load RFQ rows");
+        setLoading(false);
+      });
   }, [rfqNo]);
 
+  // Auto-select first matching model for line items missing selectedModel
+  const autoSelectDefaultModels = async (items) => {
+    // Filter items needing default selection: no selectedModel in map AND no auma_model assigned
+    const itemsNeedingSelection = items.filter(
+      (item) => !selectedModelsMap[item.id] && (!item.auma_model || item.auma_model === "")
+    );
+
+    if (itemsNeedingSelection.length === 0) return;
+
+    for (const item of itemsNeedingSelection) {
+      try {
+        const res = await axios.post("http://localhost:5000/api/get-matching-models", {
+          valveType: item.valveType,
+          valveTorque: item.valveTorque,
+          safetyFactor: item.safetyFactor,
+          protection_type: item.protection_type || item.weatherproofType,
+          painting: item.painting,
+        });
+
+        const firstModel = res.data?.[0];
+        if (firstModel) {
+          // Update backend with default selected model
+          await axios.put(`http://localhost:5000/api/update-valve-row/${item.id}`, {
+            selectedModel: firstModel,
+          });
+
+          // Update local UI state immediately
+          setSelectedModelsMap((prev) => ({
+            ...prev,
+            [item.id]: firstModel,
+          }));
+        }
+      } catch (error) {
+        console.error("Error auto-selecting default model for item:", item.id, error);
+      }
+    }
+  };
+
+  // Fetch models when opening modal for changing/selecting model on a row
   const fetchMatchingModels = async (item) => {
     setSelectedItem(item);
     try {
@@ -28,170 +76,179 @@ const SelectModel = ({ rfqNo }) => {
         valveType: item.valveType,
         valveTorque: item.valveTorque,
         safetyFactor: item.safetyFactor,
-        topFlange: item.topFlange,
-        weatherproofType: item.weatherproofType,
+        protection_type: item.protection_type || item.weatherproofType,
         painting: item.painting,
       });
-
-      setMatchingModels(res.data);
+      setMatchingModels(res.data || []);
       setShowModal(true);
     } catch (err) {
-      console.error("Error fetching matching models:", err);
+      alert("Error fetching matching models");
     }
   };
 
+  // On selecting a model from modal
   const handleSelectModel = async (model) => {
+    if (!selectedItem) return;
+
     try {
       await axios.put(`http://localhost:5000/api/update-valve-row/${selectedItem.id}`, {
-        auma_model: model,
+        selectedModel: model,
       });
-      alert(`AUMA Model "${model}" assigned to item ${selectedItem.item}`);
-      setShowModal(false);
 
+      // Update local state and close modal
+      setSelectedModelsMap((prev) => ({
+        ...prev,
+        [selectedItem.id]: model,
+      }));
+      setShowModal(false);
+      setSelectedItem(null);
+
+      // Refresh line items to get any updates from backend
       const res = await axios.get(`http://localhost:5000/api/rfq-details/${rfqNo}`);
       setLineItems(res.data);
     } catch (err) {
-      console.error("Failed to update model:", err);
-      alert("Update failed.");
+      alert("Failed to assign model");
     }
   };
 
-  const handleConvertToQuotation = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text(`Quotation for RFQ: ${rfqNo}`, 14, 20);
+  // Check if all models are selected (either from map or auma_model present)
+  const allModelsSelected = lineItems.every(
+    (item) => selectedModelsMap[item.id] || (item.auma_model && item.auma_model !== "")
+  );
 
-    const tableData = lineItems.map(item => [
-      item.item,
-      item.valveType,
-      item.valveTorque,
-      item.actuatorVoltage,
-      item.weatherproofType,
-      item.certification,
-      item.painting,
-      item.auma_model || "Not selected",
-    ]);
+  // Handle convert to quotation button click and download PDF automatically
+  const handleConvertToQuotation = async () => {
+    if (!rfqNo) return;
 
-    autoTable(doc, {
-      head: [["Item", "Valve Type", "Torque", "Voltage", "Weatherproof", "Certification", "Painting", "AUMA Model"]],
-      body: tableData,
-      startY: 30,
-    });
+    setLoadingQuotation(true);
+    try {
+      // First generate quotation number
+      const res = await axios.post(`http://localhost:5000/api/generate-quotation/${rfqNo}`);
+      const { quotationNumber: qno } = res.data;
+      setQuotationNumber(qno);
+      alert(`Quotation Number generated: ${qno}`);
 
-    doc.save(`Quotation_${rfqNo}.pdf`);
+      // Then download the PDF (make sure your backend supports this endpoint)
+      const pdfRes = await axios.get(`http://localhost:5000/api/download-quotation-pdf/${qno}`, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([pdfRes.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `quotation_${qno}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      alert("Error generating quotation or downloading PDF");
+      console.error(err);
+    }
+    setLoadingQuotation(false);
   };
 
-  if (loading) {
-    return (
-      <div className="text-center my-5">
-        <Spinner animation="border" role="status" />
-        <div className="mt-2">Loading RFQ Details...</div>
-      </div>
-    );
-  }
+  if (loading) return <Spinner animation="border" />;
 
   return (
-    <div className="card shadow-sm mt-4">
-      <div className="card-body">
-        <h4 className="fw-bold text-primary mb-4">
-          Select AUMA Models for RFQ: <span className="text-dark">{rfqNo}</span>
-        </h4>
+    <div>
+      <h4>Select Models for RFQ: {rfqNo}</h4>
+      <Table striped bordered>
+        <thead>
+          <tr>
+            <th>Type (Partturn)</th>
+            <th>Valve Type</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Total Price</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lineItems.map((item) => {
+            const selectedModel = selectedModelsMap[item.id];
+            let price = "-";
+            let totalPrice = "-";
+            let modelDisplay = <em>Not selected</em>;
 
-        {lineItems.length === 0 ? (
-          <Alert variant="warning">No valve items found for this RFQ.</Alert>
-        ) : (
-          <div className="table-responsive">
-            <Table striped bordered hover>
-              <thead className="table-light">
+            if (selectedModel) {
+              price = selectedModel.price;
+              totalPrice = (item.quantity || 1) * price;
+              modelDisplay = selectedModel.child_id;
+            } else if (item.auma_model) {
+              modelDisplay = item.auma_model;
+            }
+
+            return (
+              <tr key={item.id}>
+                <td>{selectedModel?.type || item.type || "—"}</td>
+                <td>{item.valveType}</td>
+                <td>{item.quantity ?? "—"}</td>
+                <td>{price}</td>
+                <td>{totalPrice}</td>
+                <td>
+                  <Button
+                    variant="link"
+                    onClick={() => fetchMatchingModels(item)}
+                    title="Change or select model"
+                  >
+                    {(selectedModel || item.auma_model) ? "Change ( ? )" : "Select ( ? )"}
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+
+      {/* Model selection Modal */}
+      <Modal show={showModal} onHide={() => setShowModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Select Matching Model</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {matchingModels.length === 0 ? (
+            <p>No matching models found.</p>
+          ) : (
+            <Table hover size="sm">
+              <thead>
                 <tr>
-                  <th>Item</th>
+                  <th>Type</th>
                   <th>Valve Type</th>
-                  <th>Torque</th>
-                  <th>Voltage</th>
-                  <th>Weatherproof</th>
-                  <th>Certification</th>
-                  <th>Painting</th>
-                  <th>AUMA Model</th>
+                  <th>Torque Max</th>
+                  <th>Price</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {lineItems.map((item, idx) => (
-                  <tr key={idx}>
-                    <td>{item.item}</td>
-                    <td>{item.valveType}</td>
-                    <td>{item.valveTorque}</td>
-                    <td>{item.actuatorVoltage}</td>
-                    <td>{item.weatherproofType}</td>
-                    <td>{item.certification}</td>
-                    <td>{item.painting}</td>
-                    <td className="fw-semibold">
-                      {item.auma_model || <span className="text-muted fst-italic">Not selected</span>}
-                    </td>
+                {matchingModels.map((m) => (
+                  <tr key={m.child_id}>
+                    <td>{m.type}</td>
+                    <td>{m.valve_type}</td>
+                    <td>{m.valve_max_valve_torque}</td>
+                    <td>{m.price}</td>
                     <td>
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => fetchMatchingModels(item)}
-                      >
-                        Select Model
+                      <Button size="sm" onClick={() => handleSelectModel(m)}>
+                        Select
                       </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
-          </div>
-        )}
-
-        <div className="text-end mt-4">
-          <Button
-            variant="success"
-            onClick={handleConvertToQuotation}
-            disabled={lineItems.some(item => !item.auma_model)}
-          >
-            <i className="bi bi-file-earmark-pdf me-2" />
-            Convert to Quotation (PDF)
-          </Button>
-
-          <Link to={`/quotation/${rfqNo}`}>
-            <Button variant="primary" className="ms-2">
-              <i className="bi bi-eye me-2" />
-              View Full Quotation
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Modal for Selecting AUMA Model */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Select Matching AUMA Model</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {matchingModels.length > 0 ? (
-            <div className="list-group">
-              {matchingModels.map((m, i) => (
-                <div
-                  key={i}
-                  className="list-group-item d-flex justify-content-between align-items-center"
-                >
-                  <div className="fw-bold">{m.auma_model}</div>
-                  <Button
-                    variant="success"
-                    size="sm"
-                    onClick={() => handleSelectModel(m.auma_model)}
-                  >
-                    Select
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Alert variant="info">No matching models found for this item.</Alert>
           )}
         </Modal.Body>
       </Modal>
+
+      {/* Convert to Quotation Button only */}
+      <div className="mt-3">
+        <Button
+          onClick={handleConvertToQuotation}
+          disabled={!allModelsSelected || loadingQuotation}
+          variant="primary"
+        >
+          {loadingQuotation ? "Converting..." : "Convert to Quotation"}
+        </Button>
+      </div>
     </div>
   );
 };

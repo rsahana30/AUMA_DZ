@@ -1,7 +1,81 @@
 const express = require("express");
 const router = express.Router();
+const fs = require("fs");           // <-- Add missing modules
+const path = require("path");
 const connection = require("../db/connection");
 
+// In-memory stores for quotation numbers; replace with DB storage in production
+const quotationCountersByDate = {}; // { 'YYYYMMDD': counter }
+const rfqQuotationMap = {};         // { rfqNo: quotationNumber }
+
+// Helper to generate unique quotation number
+function generateQuotationNumber() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const datePrefix = `${yyyy}${mm}${dd}`;
+
+  if (!quotationCountersByDate[datePrefix]) {
+    quotationCountersByDate[datePrefix] = 0;
+  }
+  quotationCountersByDate[datePrefix]++;
+  const counterString = String(quotationCountersByDate[datePrefix]).padStart(4, "0");
+  return `Q${datePrefix}${counterString}`;
+}
+
+// Ensure quotations directory exists
+const quotationsDir = path.join(__dirname, "quotations");
+if (!fs.existsSync(quotationsDir)) {
+  fs.mkdirSync(quotationsDir, { recursive: true });
+}
+
+// Dummy PDF generation - replace with actual PDF generation in production
+function generatePDF(quotationNumber, rfqNo) {
+  const pdfPath = path.join(quotationsDir, `${quotationNumber}.pdf`);
+  const content = `Quotation Number: ${quotationNumber}\nRFQ No: ${rfqNo}\nGenerated on: ${new Date().toISOString()}`;
+  try {
+    fs.writeFileSync(pdfPath, content, "utf8");
+  } catch (err) {
+    console.error("Error writing PDF file:", err);
+    throw err;
+  }
+  return pdfPath;
+}
+
+// POST /api/generate-quotation/:rfqNo
+router.post("/generate-quotation/:rfqNo", (req, res) => {
+  const rfqNo = req.params.rfqNo;
+
+  if (rfqQuotationMap[rfqNo]) {
+    return res.json({ quotationNumber: rfqQuotationMap[rfqNo] });
+  }
+
+  const quotationNumber = generateQuotationNumber();
+
+  try {
+    generatePDF(quotationNumber, rfqNo);
+  } catch (err) {
+    console.error("Failed to generate PDF:", err);
+    return res.status(500).json({ error: "Failed to generate quotation PDF" });
+  }
+
+  rfqQuotationMap[rfqNo] = quotationNumber;
+
+  res.json({ quotationNumber });
+});
+
+// GET /api/view-quotation/:quotationNumber
+router.get("/view-quotation/:quotationNumber", (req, res) => {
+  const qno = req.params.quotationNumber;
+  const pdfPath = path.join(quotationsDir, `${qno}.pdf`);
+
+  if (!fs.existsSync(pdfPath)) {
+    return res.status(404).send("Quotation PDF not found");
+  }
+
+  res.sendFile(pdfPath);
+});
 //display of rfqs, customer name, created at and submitted by
 router.get('/rfqs', (req, res) => {
   const sql = 'SELECT DISTINCT rfqs.rfq_no,  rfqs.customer,rfqs.created_at,users.name AS submitted_b FROM rfqs LEFT JOIN users ON rfqs.user_id = users.id ORDER BY rfqs.created_at DESC;';
@@ -74,6 +148,7 @@ router.post("/upload", async (req, res) => {
         stemDia: row["Valve stem Dia (mm)"],
         mast: row["Valve MAST (Nm)"],
         numberOfTurns: row["Number of Turns (for Gate and Globe valves)"],
+        quantity:row["quantity"]
       };
 
       connection.query("INSERT INTO rfqs SET ?", insertData, (insertErr, result) => {
@@ -123,78 +198,78 @@ router.get("/rfq-details/:rfqNo", (req, res) => {
   );
 });
 
-// Update single valve row
+// 2. Get matching models for given valve row details (callback style)
+router.post("/get-matching-models", (req, res) => {
+  const {
+    valveType,
+    valveTorque,
+    safetyFactor,
+    protection_type,
+    painting,
+  } = req.body;
+
+  const torqueVal = parseFloat(valveTorque) || 0;
+  const sfVal = parseFloat(safetyFactor) || 1;
+  const requiredTorque = torqueVal * sfVal;
+
+  const sql = `
+    SELECT 
+      type, 
+      valve_type, 
+      protection_type, 
+      painting, 
+      price, 
+      child_id, 
+      valve_max_valve_torque
+    FROM partturn
+    WHERE valve_type = ?
+      AND protection_type = ?
+      AND painting = ?
+      AND valve_max_valve_torque >= ?
+  `;
+
+  connection.query(
+    sql,
+    [valveType, protection_type, painting, requiredTorque],
+    (err, results) => {
+      if (err) {
+        console.error("Error fetching matching models:", err);
+        return res.status(500).json({ error: "Failed to fetch matching models" });
+      }
+
+      res.json(results);
+    }
+  );
+});
+
+// 3. Update selected model for a valve row (callback style)
 router.put("/update-valve-row/:id", (req, res) => {
   const { id } = req.params;
-  const updateData = req.body;
+  const { selectedModel } = req.body;
+
+  if (!selectedModel) {
+    return res.status(400).json({ error: "No selected model provided" });
+  }
+
+  const updateData = {
+    auma_model: selectedModel.child_id,
+    // You may update other fields here if needed (e.g. price)
+  };
 
   connection.query(
     "UPDATE rfqs SET ? WHERE id = ?",
     [updateData, id],
     (err, result) => {
       if (err) {
-        console.error("Error updating row:", err);
+        console.error("Error updating valve row:", err);
         return res.status(500).json({ error: "Update failed" });
       }
-      res.json({ message: "Row updated successfully" });
+      res.json({ message: "Valve row updated successfully" });
     }
   );
 });
 
-router.post("/get-matching-models", (req, res) => {
-  const {
-    valveType,
-    valveTorque,
-    safetyFactor,
-    topFlange,
-    weatherproofType,
-    painting
-  } = req.body;
-
-  const torque = parseFloat(valveTorque) || 0;
-  const sf = parseFloat(safetyFactor) || 1;
-  const requiredTorque = torque * sf;
-
-  const query = `
-    SELECT 
-      valve_type,
-      valve_max_valve_torque,
-      valve_flange_iso5211,
-      gearbox_input_mounting_flange,
-      gearbox_reduction_ratio,
-      gearbox_weight
-    FROM partturn 
-    WHERE LOWER(valve_type) = ?
-      AND valve_max_valve_torque >= ?
-      AND valve_flange_iso5211 LIKE ?
-      AND protection_type = ?
-      AND painting = ?;
-  `;
-
-  connection.query(
-    query,
-    [
-      valveType.toLowerCase(),
-      requiredTorque,
-      `%${topFlange}%`,
-      weatherproofType,
-      painting
-    ],
-    (err, results) => {
-      if (err) {
-        console.error("🔥 Error fetching matching models:", err);
-        return res.status(500).json({ error: "Failed to fetch matching models" });
-      }
-
-      const models = results.map((r) => ({
-        auma_model: `${r.valve_type.toUpperCase()}-${r.valve_max_valve_torque}Nm [${r.gearbox_input_mounting_flange}, Ratio: ${r.gearbox_reduction_ratio}]`
-      }));
-
-      res.json(models);
-    }
-  );
-});
-
+// POST /api/get-models-by-ids
 
 router.get("/se-details/:rfqNo", async (req, res) => {
   const { rfqNo } = req.params;
