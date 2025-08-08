@@ -7,12 +7,14 @@ require("dotenv").config();
 
 // Signup
 router.post("/signup", (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
   const hash = bcrypt.hashSync(password, 10);
 
-  const query = "INSERT INTO users (email, password) VALUES (?, ?)";
-  con.query(query, [email, hash], (err, result) => {
-    if (err) return res.status(500).json({ error: "Signup failed", detail: err });
+  const query = "INSERT INTO users_auma (name,email,password,role) VALUES (?, ?, ?,?)";
+  con.query(query, [name, email, hash, role], (err, result) => {
+    if (err) {
+      return res.status(500).json({ error: "Signup failed", detail: err });
+    }
     res.json({ message: "Signup successful" });
   });
 });
