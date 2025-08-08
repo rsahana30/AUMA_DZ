@@ -4,8 +4,20 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import SelectModel from "./SelectModel";
+import { getToken, getUserFromToken } from "../utils/auth";
 
 const RFQ = () => {
+  const [user, setUser] = useState(null);
+  const token = getToken();
+  if (!token) {
+    window.location.href = "/login"; // Redirect to login if not authenticated
+  }
+  useEffect(() => {
+    if (token) {
+      const userData = getUserFromToken();
+      setUser(userData);
+    }
+  }, [token]);
   const [dropdowns, setDropdowns] = useState({});
   const [excelData, setExcelData] = useState([]);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -119,6 +131,8 @@ const RFQ = () => {
 
     try {
       const payload = {
+        user_id: user.id,
+        submitted_by: user.name,
         manualFields: dropdowns,
         excelRows: excelData,
       };

@@ -78,7 +78,7 @@ router.get("/view-quotation/:quotationNumber", (req, res) => {
 });
 //display of rfqs, customer name, created at and submitted by
 router.get('/rfqs', (req, res) => {
-  const sql = 'SELECT DISTINCT rfqs.rfq_no,  rfqs.customer,rfqs.created_at,users.name AS submitted_b FROM rfqs LEFT JOIN users ON rfqs.user_id = users.id ORDER BY rfqs.created_at DESC;';
+  const sql = 'SELECT DISTINCT rfqs.rfq_no,  rfqs.customer,rfqs.created_at,users.name AS submitted_by FROM rfqs LEFT JOIN users ON rfqs.user_id = users.id ORDER BY rfqs.created_at DESC;';
 
   connection.query(sql, (error, results, fields) => {
     if (error) {
@@ -91,7 +91,7 @@ router.get('/rfqs', (req, res) => {
   });
 });
 router.post("/upload", async (req, res) => {
-  const { manualFields, excelRows } = req.body;
+  const { user_id, submitted_by, manualFields, excelRows } = req.body;
 
   if (!manualFields || !excelRows || excelRows.length === 0) {
     return res.status(400).json({ error: "Missing data" });
@@ -148,7 +148,10 @@ router.post("/upload", async (req, res) => {
         stemDia: row["Valve stem Dia (mm)"],
         mast: row["Valve MAST (Nm)"],
         numberOfTurns: row["Number of Turns (for Gate and Globe valves)"],
-        quantity:row["quantity"]
+        quantity: row["quantity"],
+
+        user_id: user_id,
+        submitted_by: submitted_by,
       };
 
       connection.query("INSERT INTO rfqs SET ?", insertData, (insertErr, result) => {
