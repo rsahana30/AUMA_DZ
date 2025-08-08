@@ -155,7 +155,7 @@ const SelectModel = ({ rfqNo }) => {
       <Table striped bordered>
         <thead>
           <tr>
-            <th>Type (Partturn)</th>
+            <th>AUMA Model(Actuator)</th>
             <th>Valve Type</th>
             <th>Quantity</th>
             <th>Price</th>
@@ -191,7 +191,7 @@ const SelectModel = ({ rfqNo }) => {
                     onClick={() => fetchMatchingModels(item)}
                     title="Change or select model"
                   >
-                    {(selectedModel || item.auma_model) ? "Change ( ? )" : "Select ( ? )"}
+                    {(selectedModel || item.auma_model) ? " ? " : "Select ( ? )"}
                   </Button>
                 </td>
               </tr>

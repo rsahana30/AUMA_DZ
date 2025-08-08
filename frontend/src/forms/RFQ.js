@@ -49,7 +49,7 @@ const RFQ = () => {
   const predefinedValues = {
     controllerType: ["AM", "AC"],
     gearBoxLocation: ["Germany", "India", "Korea"],
-    weatherproofType: ["Weatherproof", "Explosion Proof"],
+    weatherproofType: ["Weather Proof", "Explosion Proof"],
     certification: ["IP", "ATEX", "IECEX", "UL", "FM"],
     painting: ["Standard", "Special"],
   };
@@ -275,7 +275,7 @@ const RFQ = () => {
 
               {/* Excel Table */}
               <div className="mt-4">
-                <h5 className="fw-bold">Uploaded RFQ File</h5>
+                {/* <h5 className="fw-bold">Uploaded RFQ File</h5> */}
                 <div className="table-responsive">
                   <table className="table table-bordered table-sm">
                     <thead className="table-light">
