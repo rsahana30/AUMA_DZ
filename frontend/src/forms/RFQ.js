@@ -14,20 +14,18 @@ const RFQ = () => {
   const [currentRFQNo, setCurrentRFQNo] = useState(null);
 
   const expectedHeaders = [
-    "type",
-    "valve_tag",
-    "valve_type",
-    "valve_size",
-    "valve_class",
+    "valve_size_(inch)",
     "valve_rating",
-    "valve_material",
-    "valve_model",
-    "valve_end_connection",
-    "valve_operator",
-    "valve_flange_iso5211",
-    "valve_max_valve_torque",
+    "type_of_duty_(on-off_/_modulating)",
+    "raising_stem_or_not",
+    "valve_torque_(nm)",
+    "valve_top_flange_pcd_(iso)",
+    "valve_stem_dia_(mm)",
+    "valve_mast_(nm)",
+    "number_of_turns_(for_gate_and_globe_valves)",
     "quantity"
   ];
+
 
   const fieldLabels = {
     customer: "Customer",

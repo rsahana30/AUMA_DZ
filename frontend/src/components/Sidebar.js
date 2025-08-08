@@ -10,9 +10,6 @@ const Sidebar = () => {
 
   return (
     <aside className="d-flex flex-column bg-white border-end shadow-sm" style={{ width: "240px", height: "100vh" }}>
-      <div className="px-5 py-4 ">
-        <span className="fs-4 fw-semibold text-primary">AUMA</span>
-      </div>
 
       <nav className="nav flex-column px-2 pt-3">
         {navItems.map(({ path, label }) => (
