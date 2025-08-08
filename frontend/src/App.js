@@ -24,25 +24,24 @@ const App = () => (
       <Route
         path="*"
         element={
-          <>
+          <PrivateRoute>
             <Navbar />
             <div className="d-flex">
               <Sidebar />
               <div className="flex-grow-1 p-3">
                 <Routes>
                   <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-                  {/* <Route path="/" element={<h2>Welcome to Dashboard</h2>} /> */}
-                  <Route path="/" element={<RFQ />} />
-                  <Route path="/rfq" element={<RFQTable />} />
-                  <Route path="/rfq/:rfqNo" element={<RFQDetailPage />} />
-                  <Route path="/select-model/:rfqNo" element={<SelectModel />} />
-                  <Route path="/update-rfq/:rfqNo" element={<UpdateRFQ />} />
-                  <Route path="/quotation/:rfqNo" element={<Quotation />} />
+                  <Route path="/" element={<PrivateRoute><RFQ /></PrivateRoute>} />
+                  <Route path="/rfq" element={<PrivateRoute><RFQTable /></PrivateRoute>} />
+                  <Route path="/rfq/:rfqNo" element={<PrivateRoute><RFQDetailPage /></PrivateRoute>} />
+                  <Route path="/select-model/:rfqNo" element={<PrivateRoute><SelectModel /></PrivateRoute>} />
+                  <Route path="/update-rfq/:rfqNo" element={<PrivateRoute><UpdateRFQ /></PrivateRoute>} />
+                  <Route path="/quotation/:rfqNo" element={<PrivateRoute><Quotation /></PrivateRoute>} />
 
                 </Routes>
               </div>
             </div>
-          </>
+          </PrivateRoute>
         }
       />
     </Routes>

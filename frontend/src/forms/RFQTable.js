@@ -75,7 +75,7 @@ const RFQTable = () => {
                   </td>
                   <td>{rfq.customer}</td>
                   <td>{formatDate(rfq.created_at)}</td>
-                  <td>{rfq.submitted_by || "-"}</td>
+                  <td>{rfq.submitted_by ? "Submitted by " + rfq.submitted_by : "-"}</td>
                 </tr>
               ))
             ) : (
