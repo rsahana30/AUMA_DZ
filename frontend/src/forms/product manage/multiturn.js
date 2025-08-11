@@ -3,9 +3,11 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import ExcelUploadMultiturn from "../ExcelUploadMultiturn";
 
 function Multiturn() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("manual");
 
   const [formData, setFormData] = useState({
     parent_id: "",
@@ -94,28 +96,52 @@ function Multiturn() {
         ← Go Back
       </button>
 
-      <form className="row g-3 mt-3" onSubmit={handleSubmit}>
-        {Object.keys(formData).map((field) => (
-          <div className="col-md-6" key={field}>
-            <label className="form-label">
-              {field.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              name={field}
-              value={formData[field]}
-              onChange={handleChange}
-            />
-          </div>
-        ))}
-
-        <div className="col-12">
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? "Saving..." : "Save"}
+      <ul className="nav nav-tabs">
+        <li className="nav-item">
+          <button
+            className={`nav-link mb-3 ${activeTab === "manual" ? "active rounded border text-white bg-primary" : ""}`}
+            onClick={() => setActiveTab("manual")}
+          >
+            Manual Entry
           </button>
-        </div>
-      </form>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link mb-3 ${activeTab === "excel" ? "active rounded border text-white bg-primary" : ""}`}
+            onClick={() => setActiveTab("excel")}
+          >
+            Excel Upload
+          </button>
+        </li>
+      </ul>
+
+      <div className="tab-content mt-3">
+        {activeTab === "manual" && (
+          <form className="row g-3" onSubmit={handleSubmit}>
+            {Object.keys(formData).map((field) => (
+              <div className="col-md-6" key={field}>
+                <label className="form-label">
+                  {field.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  name={field}
+                  value={formData[field]}
+                  onChange={handleChange}
+                />
+              </div>
+            ))}
+
+            <div className="col-12">
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+        )}
+        {activeTab === "excel" && <ExcelUploadMultiturn />}
+      </div>
     </div>
   );
 }
