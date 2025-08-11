@@ -202,7 +202,7 @@ router.get("/rfq-details/:rfqNo", (req, res) => {
 });
 
 // 2. Get matching models for given valve row details (callback style)
-router.post("/get-matching-models", (req, res) => {
+/*router.post("/get-matching-models", (req, res) => {
   const {
     valveType,
     valveTorque,
@@ -243,7 +243,62 @@ router.post("/get-matching-models", (req, res) => {
       res.json(results);
     }
   );
+});*/
+
+router.post("/get-matching-models", (req, res) => {
+  const {
+    valveType,
+    valveTorque,
+    safetyFactor,
+    protection_type,
+    painting,
+  } = req.body;
+
+  const torqueVal = parseFloat(valveTorque) || 0;
+  const sfVal = parseFloat(safetyFactor) || 1;
+  const requiredTorque = torqueVal * sfVal;
+
+  // Decide table name
+  let tableName = "";
+  const lowerType = (valveType || "").toLowerCase();
+
+  if (lowerType === "ball" || lowerType === "butterfly") {
+    tableName = "partturn";
+  } else if (lowerType === "gate" || lowerType === "penstock") {
+    tableName = "multiturn";
+  } else {
+    return res.status(400).json({ error: "Unknown valve type" });
+  }
+
+  const sql = `
+    SELECT 
+      type, 
+      valve_type, 
+      protection_type, 
+      painting, 
+      price, 
+      child_id, 
+      valve_max_valve_torque
+    FROM ${tableName}
+    WHERE valve_type = ?
+      AND protection_type = ?
+      AND painting = ?
+      AND valve_max_valve_torque >= ?
+  `;
+
+  connection.query(
+    sql,
+    [valveType, protection_type, painting, requiredTorque],
+    (err, results) => {
+      if (err) {
+        console.error("Error fetching matching models:", err);
+        return res.status(500).json({ error: "Failed to fetch matching models" });
+      }
+      res.json(results);
+    }
+  );
 });
+
 
 // 3. Update selected model for a valve row (callback style)
 router.put("/update-valve-row/:id", (req, res) => {
@@ -377,63 +432,111 @@ router.post("/save-partturn", (req, res) => {
     });
   });
 });
-
-// Save Multiturn data
+ 
+// Save Multiturn Data
 router.post("/save-multiturn", (req, res) => {
   const {
-    nominal_maximum_valve_torque,
-    standard_en_iso_5210,
-    option_din_3210,
+    parent_id,
+    duty_class_name,
+    description,
+    valve_max_valve_torque,
+    valve_flange_iso5211,
+    valve_max_shaft_diameter,
     type,
-    reduction_ratio,
-    factor,
-    suitable_auma_multi_turn_actuator,
-    din_3210,
-    actuator_series
+    gearbox_reduction_ratio,
+    gearbox_factor,
+    gearbox_turns_90,
+    gearbox_input_shaft,
+    gearbox_input_mounting_flange,
+    gearbox_max_input_torques,
+    gearbox_weight,
+    gearbox_additional_weight_extension_flange,
+    gearbox_handwheel_diameter,
+    gearbox_manual_force,
+    valve_type,
+    protection_type,
+    painting,
+    price
   } = req.body;
 
-  // Check if ALL fields are empty or empty strings
+  // Check if all fields are empty
   const allEmpty = [
-    nominal_maximum_valve_torque,
-    standard_en_iso_5210,
-    option_din_3210,
+    parent_id,
+    duty_class_name,
+    description,
+    valve_max_valve_torque,
+    valve_flange_iso5211,
+    valve_max_shaft_diameter,
     type,
-    reduction_ratio,
-    factor,
-    suitable_auma_multi_turn_actuator,
-    din_3210,
-    actuator_series
-  ].every(value => value === '' || value === null || value === undefined);
+    gearbox_reduction_ratio,
+    gearbox_factor,
+    gearbox_turns_90,
+    gearbox_input_shaft,
+    gearbox_input_mounting_flange,
+    gearbox_max_input_torques,
+    gearbox_weight,
+    gearbox_additional_weight_extension_flange,
+    gearbox_handwheel_diameter,
+    gearbox_manual_force,
+    valve_type,
+    protection_type,
+    painting,
+    price
+  ].every(v => v === '' || v === null || v === undefined);
 
   if (allEmpty) {
     return res.status(400).json({ error: "At least one field must be filled" });
   }
 
-  // Replace empty strings with null for safe DB insert
+  // Replace empty strings with null
   const values = [
-    nominal_maximum_valve_torque || null,
-    standard_en_iso_5210 || null,
-    option_din_3210 || null,
+    parent_id || null,
+    duty_class_name || null,
+    description || null,
+    valve_max_valve_torque || null,
+    valve_flange_iso5211 || null,
+    valve_max_shaft_diameter || null,
     type || null,
-    reduction_ratio || null,
-    factor || null,
-    suitable_auma_multi_turn_actuator || null,
-    din_3210 || null,
-    actuator_series || null
+    gearbox_reduction_ratio || null,
+    gearbox_factor || null,
+    gearbox_turns_90 || null,
+    gearbox_input_shaft || null,
+    gearbox_input_mounting_flange || null,
+    gearbox_max_input_torques || null,
+    gearbox_weight || null,
+    gearbox_additional_weight_extension_flange || null,
+    gearbox_handwheel_diameter || null,
+    gearbox_manual_force || null,
+    valve_type || null,
+    protection_type || null,
+    painting || null,
+    price || 0.00
   ];
 
   const sql = `
     INSERT INTO multiturn (
-      nominal_maximum_valve_torque,
-      standard_en_iso_5210,
-      option_din_3210,
+      parent_id,
+      duty_class_name,
+      description,
+      valve_max_valve_torque,
+      valve_flange_iso5211,
+      valve_max_shaft_diameter,
       type,
-      reduction_ratio,
-      factor,
-      suitable_auma_multi_turn_actuator,
-      din_3210,
-      actuator_series
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      gearbox_reduction_ratio,
+      gearbox_factor,
+      gearbox_turns_90,
+      gearbox_input_shaft,
+      gearbox_input_mounting_flange,
+      gearbox_max_input_torques,
+      gearbox_weight,
+      gearbox_additional_weight_extension_flange,
+      gearbox_handwheel_diameter,
+      gearbox_manual_force,
+      valve_type,
+      protection_type,
+      painting,
+      price
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   connection.query(sql, values, (err, result) => {
@@ -447,7 +550,6 @@ router.post("/save-multiturn", (req, res) => {
     });
   });
 });
-
 
 
 module.exports = router;

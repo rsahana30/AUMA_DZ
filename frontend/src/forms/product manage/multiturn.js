@@ -8,15 +8,27 @@ function Multiturn() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    nominal_maximum_valve_torque: "",
-    standard_en_iso_5210: "",
-    option_din_3210: "",
+    parent_id: "",
+    duty_class_name: "",
+    description: "",
+    valve_max_valve_torque: "",
+    valve_flange_iso5211: "",
+    valve_max_shaft_diameter: "",
     type: "",
-    reduction_ratio: "",
-    factor: "",
-    suitable_auma_multi_turn_actuator: "",
-    din_3210: "",
-    actuator_series: ""
+    gearbox_reduction_ratio: "",
+    gearbox_factor: "",
+    gearbox_turns_90: "",
+    gearbox_input_shaft: "",
+    gearbox_input_mounting_flange: "",
+    gearbox_max_input_torques: "",
+    gearbox_weight: "",
+    gearbox_additional_weight_extension_flange: "",
+    gearbox_handwheel_diameter: "",
+    gearbox_manual_force: "",
+    valve_type: "",
+    protection_type: "",
+    painting: "",
+    price: ""
   });
 
   const [loading, setLoading] = useState(false);
@@ -37,15 +49,27 @@ function Multiturn() {
       );
       toast.success(res.data.message || "Saved successfully!");
       setFormData({
-        nominal_maximum_valve_torque: "",
-        standard_en_iso_5210: "",
-        option_din_3210: "",
+        parent_id: "",
+        duty_class_name: "",
+        description: "",
+        valve_max_valve_torque: "",
+        valve_flange_iso5211: "",
+        valve_max_shaft_diameter: "",
         type: "",
-        reduction_ratio: "",
-        factor: "",
-        suitable_auma_multi_turn_actuator: "",
-        din_3210: "",
-        actuator_series: ""
+        gearbox_reduction_ratio: "",
+        gearbox_factor: "",
+        gearbox_turns_90: "",
+        gearbox_input_shaft: "",
+        gearbox_input_mounting_flange: "",
+        gearbox_max_input_torques: "",
+        gearbox_weight: "",
+        gearbox_additional_weight_extension_flange: "",
+        gearbox_handwheel_diameter: "",
+        gearbox_manual_force: "",
+        valve_type: "",
+        protection_type: "",
+        painting: "",
+        price: ""
       });
     } catch (err) {
       console.error("Error saving Multiturn:", err);
@@ -74,9 +98,7 @@ function Multiturn() {
         {Object.keys(formData).map((field) => (
           <div className="col-md-6" key={field}>
             <label className="form-label">
-              {field
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (l) => l.toUpperCase())}
+              {field.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
             </label>
             <input
               type="text"
