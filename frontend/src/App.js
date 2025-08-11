@@ -15,6 +15,8 @@ import RFQTable from "./forms/RFQTable";
 import SelectModel from "./forms/SelectModel";
 import UpdateRFQ from "./forms/UpdateRFQ";
 import Quotation from "./forms/Quotation";
+import Product from "./forms/product manage/product";
+import Partturn from "./forms/product manage/partturn";
 
 const App = () => (
   <Router>
@@ -37,7 +39,8 @@ const App = () => (
                   <Route path="/select-model/:rfqNo" element={<PrivateRoute><SelectModel /></PrivateRoute>} />
                   <Route path="/update-rfq/:rfqNo" element={<PrivateRoute><UpdateRFQ /></PrivateRoute>} />
                   <Route path="/quotation/:rfqNo" element={<PrivateRoute><Quotation /></PrivateRoute>} />
-
+                  <Route path="/product/partturn" element={<PrivateRoute><Partturn /></PrivateRoute>} />
+                  <Route path="/product" element={<PrivateRoute><Product/></PrivateRoute>} />
                 </Routes>
               </div>
             </div>

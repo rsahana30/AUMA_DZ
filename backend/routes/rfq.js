@@ -318,6 +318,56 @@ router.post("/submit-se-mapping", async (req, res) => {
   }
 });
 
+// Save Partturn Data
+router.post("/save-partturn", (req, res) => {
+  const fields = [
+    "parent_id",
+    "duty_class_name",
+    "description",
+    "valve_max_valve_torque",
+    "valve_flange_iso5211",
+    "valve_max_shaft_diameter",
+    "type",
+    "gearbox_reduction_ratio",
+    "gearbox_factor",
+    "gearbox_turns_90",
+    "gearbox_input_shaft",
+    "gearbox_input_mounting_flange",
+    "gearbox_max_input_torques",
+    "gearbox_weight",
+    "gearbox_additional_weight_extension_flange",
+    "gearbox_handwheel_diameter",
+    "gearbox_manual_force",
+    "valve_type",
+    "protection_type",
+    "painting",
+    "price"
+  ];
+
+  const values = fields.map((field) => {
+    const val = req.body[field];
+    return val !== undefined && val !== "" ? String(val).trim() : null;
+  });
+
+  const sql = `
+    INSERT INTO partturn (
+      ${fields.join(", ")}
+    ) VALUES (${fields.map(() => "?").join(", ")})
+  `;
+
+  connection.query(sql, values, (err, result) => {
+    if (err) {
+      console.error("Error inserting Partturn:", err.sqlMessage || err);
+      return res.status(500).json({ error: "Failed to save Partturn" });
+    }
+    res.json({
+      message: "Partturn saved successfully",
+      child_id: result.insertId
+    });
+  });
+});
+
+
 
 
 module.exports = router;
