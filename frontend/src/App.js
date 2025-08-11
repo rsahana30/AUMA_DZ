@@ -17,6 +17,7 @@ import UpdateRFQ from "./forms/UpdateRFQ";
 import Quotation from "./forms/Quotation";
 import Product from "./forms/product manage/product";
 import Partturn from "./forms/product manage/partturn";
+import Multiturn from "./forms/product manage/multiturn"; 
 
 const App = () => (
   <Router>
@@ -41,6 +42,7 @@ const App = () => (
                   <Route path="/quotation/:rfqNo" element={<PrivateRoute><Quotation /></PrivateRoute>} />
                   <Route path="/product/partturn" element={<PrivateRoute><Partturn /></PrivateRoute>} />
                   <Route path="/product" element={<PrivateRoute><Product/></PrivateRoute>} />
+                  <Route path="/product/multiturn" element={<PrivateRoute><Multiturn /></PrivateRoute>} />
                 </Routes>
               </div>
             </div>

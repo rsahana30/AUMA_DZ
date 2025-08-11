@@ -344,9 +344,20 @@ router.post("/save-partturn", (req, res) => {
     "price"
   ];
 
-  const values = fields.map((field) => {
+  // Check if all fields are empty, null or undefined
+  const allEmpty = fields.every(field => {
     const val = req.body[field];
-    return val !== undefined && val !== "" ? String(val).trim() : null;
+    return val === undefined || val === null || val === "";
+  });
+
+  if (allEmpty) {
+    return res.status(400).json({ error: "At least one field must be filled" });
+  }
+
+  // Map values: convert empty strings or undefined to null, trim others
+  const values = fields.map(field => {
+    const val = req.body[field];
+    return val !== undefined && val !== "" && val !== null ? String(val).trim() : null;
   });
 
   const sql = `
@@ -367,6 +378,75 @@ router.post("/save-partturn", (req, res) => {
   });
 });
 
+// Save Multiturn data
+router.post("/save-multiturn", (req, res) => {
+  const {
+    nominal_maximum_valve_torque,
+    standard_en_iso_5210,
+    option_din_3210,
+    type,
+    reduction_ratio,
+    factor,
+    suitable_auma_multi_turn_actuator,
+    din_3210,
+    actuator_series
+  } = req.body;
+
+  // Check if ALL fields are empty or empty strings
+  const allEmpty = [
+    nominal_maximum_valve_torque,
+    standard_en_iso_5210,
+    option_din_3210,
+    type,
+    reduction_ratio,
+    factor,
+    suitable_auma_multi_turn_actuator,
+    din_3210,
+    actuator_series
+  ].every(value => value === '' || value === null || value === undefined);
+
+  if (allEmpty) {
+    return res.status(400).json({ error: "At least one field must be filled" });
+  }
+
+  // Replace empty strings with null for safe DB insert
+  const values = [
+    nominal_maximum_valve_torque || null,
+    standard_en_iso_5210 || null,
+    option_din_3210 || null,
+    type || null,
+    reduction_ratio || null,
+    factor || null,
+    suitable_auma_multi_turn_actuator || null,
+    din_3210 || null,
+    actuator_series || null
+  ];
+
+  const sql = `
+    INSERT INTO multiturn (
+      nominal_maximum_valve_torque,
+      standard_en_iso_5210,
+      option_din_3210,
+      type,
+      reduction_ratio,
+      factor,
+      suitable_auma_multi_turn_actuator,
+      din_3210,
+      actuator_series
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  connection.query(sql, values, (err, result) => {
+    if (err) {
+      console.error("Error inserting Multiturn:", err);
+      return res.status(500).json({ error: "Failed to save Multiturn" });
+    }
+    res.json({
+      message: "Multiturn saved successfully",
+      id: result.insertId
+    });
+  });
+});
 
 
 
