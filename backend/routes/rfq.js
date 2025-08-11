@@ -3,6 +3,8 @@ const router = express.Router();
 const fs = require("fs");           // <-- Add missing modules
 const path = require("path");
 const connection = require("../db/connection");
+const PDFDocument = require("pdfkit");
+const SVGtoPDF = require("svg-to-pdfkit");
 
 // In-memory stores for quotation numbers; replace with DB storage in production
 const quotationCountersByDate = {}; // { 'YYYYMMDD': counter }
@@ -31,16 +33,118 @@ if (!fs.existsSync(quotationsDir)) {
 }
 
 // Dummy PDF generation - replace with actual PDF generation in production
-function generatePDF(quotationNumber, rfqNo) {
-  const pdfPath = path.join(quotationsDir, `${quotationNumber}.pdf`);
-  const content = `Quotation Number: ${quotationNumber}\nRFQ No: ${rfqNo}\nGenerated on: ${new Date().toISOString()}`;
-  try {
-    fs.writeFileSync(pdfPath, content, "utf8");
-  } catch (err) {
-    console.error("Error writing PDF file:", err);
-    throw err;
-  }
-  return pdfPath;
+function generatePDF(connection, quotationNumber, rfqNo, callback) {
+  const sql = `
+    SELECT 
+      r.id,
+      r.customer,
+      r.valveType,
+      r.quantity,
+      COALESCE(pt.price, mt.price, 0) AS price,
+      COALESCE(pt.type, mt.type) AS auma_type
+    FROM rfqs r
+    LEFT JOIN partturn pt 
+      ON pt.child_id = r.auma_model 
+      AND (LOWER(r.valveType) = 'ball' OR LOWER(r.valveType) = 'butterfly')
+    LEFT JOIN multiturn mt 
+      ON mt.child_id = r.auma_model 
+      AND (LOWER(r.valveType) = 'gate' OR LOWER(r.valveType) = 'penstock')
+    WHERE r.rfq_no = ?;
+  `;
+
+  connection.query(sql, [rfqNo], (err, items) => {
+    if (err) return callback(err);
+    if (!items.length) return callback(new Error("RFQ not found"));
+
+    const customerName = items[0].customer;
+
+    connection.query("SELECT * FROM customers WHERE name = ?", [customerName], (err, customerInfo) => {
+      if (err) return callback(err);
+
+      const customer = customerInfo.length
+        ? customerInfo[0]
+        : {
+            address: "123 Business Street, Mumbai, India",
+            email: "contact@example.com",
+            phone: "+91 98765 43210",
+          };
+
+      const doc = new PDFDocument({ margin: 50 });
+      const pdfPath = path.join(quotationsDir, `${quotationNumber}.pdf`);
+      doc.pipe(fs.createWriteStream(pdfPath));
+
+      // Logo
+      const logoPath = path.join(__dirname, "../frontend/public/auma.png");
+      if (fs.existsSync(logoPath)) doc.image(logoPath, 50, 40, { width: 100 });
+
+      // Company Info
+      doc.fontSize(16).fillColor("#333").text("AUMA India Pvt Ltd", 160, 40);
+      doc.fontSize(10).fillColor("#666").text("Innovating Actuation Solutions", 160, 60);
+      doc.text("Email: sales@aumaindia.com | Phone: +91 12345 67890", 160, 75);
+
+      // Quotation Header
+      doc.moveDown(2);
+      doc.fontSize(20).fillColor("#000").text("QUOTATION", { align: "right" });
+      doc.fontSize(12).text(`Quotation No: ${quotationNumber}`, { align: "right" });
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, { align: "right" });
+      doc.moveDown(2);
+
+      // Customer details
+      doc.fontSize(14).fillColor("#000").text("Bill To:");
+      doc.fontSize(10)
+        .text(customerName)
+        .text(customer.address || "—")
+        .text(`Email: ${customer.email || "—"}`)
+        .text(`Phone: ${customer.phone || "—"}`);
+
+      doc.moveDown(2);
+
+      // Table header
+      const startY = doc.y;
+      doc.rect(50, startY, 500, 20).fill("#e0e0e0");
+      doc.fillColor("#000").fontSize(10)
+        .text("Item", 55, startY + 5)
+        .text("AUMA Model(Actuator)", 90, startY + 5)
+        .text("Valve Type", 250, startY + 5)
+        .text("Qty", 350, startY + 5)
+        .text("Price (INR)", 390, startY + 5)
+        .text("Total (INR)", 460, startY + 5);
+
+      let totalPrice = 0;
+      let y = startY + 20;
+
+      items.forEach((item, i) => {
+        const qty = parseInt(item.quantity) || 1;
+        const price = parseFloat(item.price) || 0;
+        const total = qty * price;
+        totalPrice += total;
+
+        if (i % 2 === 0) {
+          doc.rect(50, y, 500, 20).fill("#f9f9f9");
+        }
+        doc.fillColor("#000").fontSize(10)
+          .text(i + 1, 55, y + 5)
+          .text(item.auma_type || "-", 90, y + 5) // type from partturn/multiturn
+          .text(item.valveType || "-", 250, y + 5)
+          .text(qty, 350, y + 5)
+          .text(price ? price.toFixed(2) : "-", 390, y + 5)
+          .text(total ? total.toFixed(2) : "-", 460, y + 5);
+
+        y += 20;
+      });
+
+      // Total
+      doc.fontSize(12).fillColor("#000").text(`Grand Total: ₹${totalPrice.toFixed(2)}`, 390, y + 10);
+
+      // Footer
+      doc.moveDown(4);
+      doc.fontSize(10).fillColor("#555").text("Thank you for your business!", { align: "center" });
+      doc.text("Terms & Conditions Apply", { align: "center" });
+
+      doc.end();
+      callback(null, pdfPath);
+    });
+  });
 }
 
 // POST /api/generate-quotation/:rfqNo
@@ -53,17 +157,34 @@ router.post("/generate-quotation/:rfqNo", (req, res) => {
 
   const quotationNumber = generateQuotationNumber();
 
-  try {
-    generatePDF(quotationNumber, rfqNo);
-  } catch (err) {
-    console.error("Failed to generate PDF:", err);
-    return res.status(500).json({ error: "Failed to generate quotation PDF" });
+  generatePDF(connection, quotationNumber, rfqNo, (err, pdfPath) => {
+    if (err) {
+      console.error("Failed to generate PDF:", err);
+      return res.status(500).json({ error: "Failed to generate quotation PDF" });
+    }
+
+    rfqQuotationMap[rfqNo] = quotationNumber;
+    res.json({ quotationNumber });
+  });
+});
+
+// GET /api/download-quotation-pdf/:quotationNumber
+router.get("/download-quotation-pdf/:quotationNumber", (req, res) => {
+  const qno = req.params.quotationNumber;
+  const pdfPath = path.join(quotationsDir, `${qno}.pdf`);
+
+  if (!fs.existsSync(pdfPath)) {
+    return res.status(404).json({ error: "Quotation PDF not found" });
   }
 
-  rfqQuotationMap[rfqNo] = quotationNumber;
-
-  res.json({ quotationNumber });
+  res.download(pdfPath, `${qno}.pdf`, (err) => {
+    if (err) {
+      console.error("Error sending quotation PDF:", err);
+      res.status(500).json({ error: "Error downloading PDF" });
+    }
+  });
 });
+
 
 // GET /api/view-quotation/:quotationNumber
 router.get("/view-quotation/:quotationNumber", (req, res) => {
@@ -202,49 +323,6 @@ router.get("/rfq-details/:rfqNo", (req, res) => {
 });
 
 // 2. Get matching models for given valve row details (callback style)
-/*router.post("/get-matching-models", (req, res) => {
-  const {
-    valveType,
-    valveTorque,
-    safetyFactor,
-    protection_type,
-    painting,
-  } = req.body;
-
-  const torqueVal = parseFloat(valveTorque) || 0;
-  const sfVal = parseFloat(safetyFactor) || 1;
-  const requiredTorque = torqueVal * sfVal;
-
-  const sql = `
-    SELECT 
-      type, 
-      valve_type, 
-      protection_type, 
-      painting, 
-      price, 
-      child_id, 
-      valve_max_valve_torque
-    FROM partturn
-    WHERE valve_type = ?
-      AND protection_type = ?
-      AND painting = ?
-      AND valve_max_valve_torque >= ?
-  `;
-
-  connection.query(
-    sql,
-    [valveType, protection_type, painting, requiredTorque],
-    (err, results) => {
-      if (err) {
-        console.error("Error fetching matching models:", err);
-        return res.status(500).json({ error: "Failed to fetch matching models" });
-      }
-
-      res.json(results);
-    }
-  );
-});*/
-
 router.post("/get-matching-models", (req, res) => {
   const {
     valveType,
