@@ -3,8 +3,7 @@ const router = express.Router();
 const fs = require("fs");           // <-- Add missing modules
 const path = require("path");
 const connection = require("../db/connection");
-const PDFDocument = require("pdfkit");
-const SVGtoPDF = require("svg-to-pdfkit");
+const pdf = require("pdf-creator-node")
 
 // In-memory stores for quotation numbers; replace with DB storage in production
 const quotationCountersByDate = {}; // { 'YYYYMMDD': counter }
@@ -33,15 +32,11 @@ if (!fs.existsSync(quotationsDir)) {
 }
 
 // Dummy PDF generation - replace with actual PDF generation in production
-function generatePDF(connection, quotationNumber, rfqNo, callback) {
+async function generatePDF(connection, quotationNumber, rfqNo) {
   const sql = `
-    SELECT 
-      r.id,
-      r.customer,
-      r.valveType,
-      r.quantity,
-      COALESCE(pt.price, mt.price, 0) AS price,
-      COALESCE(pt.type, mt.type) AS auma_type
+    SELECT r.id, r.customer, r.valveType, r.quantity,
+           COALESCE(pt.price, mt.price, 0) AS price,
+           COALESCE(pt.type, mt.type) AS auma_type
     FROM rfqs r
     LEFT JOIN partturn pt 
       ON pt.child_id = r.auma_model 
@@ -52,103 +47,66 @@ function generatePDF(connection, quotationNumber, rfqNo, callback) {
     WHERE r.rfq_no = ?;
   `;
 
-  connection.query(sql, [rfqNo], (err, items) => {
-    if (err) return callback(err);
-    if (!items.length) return callback(new Error("RFQ not found"));
-
-    const customerName = items[0].customer;
-
-    connection.query("SELECT * FROM customers WHERE name = ?", [customerName], (err, customerInfo) => {
-      if (err) return callback(err);
-
-      const customer = customerInfo.length
-        ? customerInfo[0]
-        : {
-            address: "123 Business Street, Mumbai, India",
-            email: "contact@example.com",
-            phone: "+91 98765 43210",
-          };
-
-      const doc = new PDFDocument({ margin: 50 });
-      const pdfPath = path.join(quotationsDir, `${quotationNumber}.pdf`);
-      doc.pipe(fs.createWriteStream(pdfPath));
-
-      // Logo
-      const logoPath = path.join(__dirname, "../frontend/public/auma.png");
-      if (fs.existsSync(logoPath)) doc.image(logoPath, 50, 40, { width: 100 });
-
-      // Company Info
-      doc.fontSize(16).fillColor("#333").text("AUMA India Pvt Ltd", 160, 40);
-      doc.fontSize(10).fillColor("#666").text("Innovating Actuation Solutions", 160, 60);
-      doc.text("Email: sales@aumaindia.com | Phone: +91 12345 67890", 160, 75);
-
-      // Quotation Header
-      doc.moveDown(2);
-      doc.fontSize(20).fillColor("#000").text("QUOTATION", { align: "right" });
-      doc.fontSize(12).text(`Quotation No: ${quotationNumber}`, { align: "right" });
-      doc.text(`Date: ${new Date().toLocaleDateString()}`, { align: "right" });
-      doc.moveDown(2);
-
-      // Customer details
-      doc.fontSize(14).fillColor("#000").text("Bill To:");
-      doc.fontSize(10)
-        .text(customerName)
-        .text(customer.address || "—")
-        .text(`Email: ${customer.email || "—"}`)
-        .text(`Phone: ${customer.phone || "—"}`);
-
-      doc.moveDown(2);
-
-      // Table header
-      const startY = doc.y;
-      doc.rect(50, startY, 500, 20).fill("#e0e0e0");
-      doc.fillColor("#000").fontSize(10)
-        .text("Item", 55, startY + 5)
-        .text("AUMA Model(Actuator)", 90, startY + 5)
-        .text("Valve Type", 250, startY + 5)
-        .text("Qty", 350, startY + 5)
-        .text("Price (INR)", 390, startY + 5)
-        .text("Total (INR)", 460, startY + 5);
-
-      let totalPrice = 0;
-      let y = startY + 20;
-
-      items.forEach((item, i) => {
-        const qty = parseInt(item.quantity) || 1;
-        const price = parseFloat(item.price) || 0;
-        const total = qty * price;
-        totalPrice += total;
-
-        if (i % 2 === 0) {
-          doc.rect(50, y, 500, 20).fill("#f9f9f9");
-        }
-        doc.fillColor("#000").fontSize(10)
-          .text(i + 1, 55, y + 5)
-          .text(item.auma_type || "-", 90, y + 5) // type from partturn/multiturn
-          .text(item.valveType || "-", 250, y + 5)
-          .text(qty, 350, y + 5)
-          .text(price ? price.toFixed(2) : "-", 390, y + 5)
-          .text(total ? total.toFixed(2) : "-", 460, y + 5);
-
-        y += 20;
-      });
-
-      // Total
-      doc.fontSize(12).fillColor("#000").text(`Grand Total: ₹${totalPrice.toFixed(2)}`, 390, y + 10);
-
-      // Footer
-      doc.moveDown(4);
-      doc.fontSize(10).fillColor("#555").text("Thank you for your business!", { align: "center" });
-      doc.text("Terms & Conditions Apply", { align: "center" });
-
-      doc.end();
-      callback(null, pdfPath);
+  const items = await new Promise((resolve, reject) => {
+    connection.query(sql, [rfqNo], (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows || []);
     });
   });
+
+  if (!items.length) throw new Error("RFQ not found");
+
+  const customerName = items[0].customer;
+  const customerInfo = await new Promise((resolve, reject) => {
+    connection.query("SELECT * FROM customers WHERE name = ?", [customerName], (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows || []);
+    });
+  });
+
+  const customer = customerInfo.length
+    ? customerInfo[0]
+    : { address: "123 Business Street, Mumbai, India", email: "contact@example.com", phone: "+91 98765 43210" };
+
+  const mappedItems = items.map((it, i) => ({
+    sl: i + 1,
+    customerPartNo: it.auma_type || '-',
+    description: it.valveType || '-',
+    qty: parseInt(it.quantity) || 0,
+    moq: 0,
+    lead_time_weeks: '-',
+    sellingPrice: parseFloat(it.price) || 0,
+    remarks: ''
+  }));
+
+  const total = mappedItems.reduce((sum, r) => sum + (r.qty * r.sellingPrice), 0);
+
+  const data = {
+    quotation: {
+      customer: customerName,
+      customerAddress: customer.address,
+      quotationref: quotationNumber,
+      quotationdate: new Date().toLocaleDateString('en-GB'),
+      expirydate: new Date(Date.now() + 10*24*60*60*1000).toLocaleDateString('en-GB'),
+      items: mappedItems,
+      total,
+      assumptionText: '',
+      logoUrl: `data:image/png;base64,${fs.readFileSync(path.join(__dirname, '../assets/auma.png')).toString('base64')}`
+    }
+  };
+
+  const html = fs.readFileSync(path.join(__dirname, '../templates/quotationtemplate.html'), 'utf8');
+
+  const outputPath = path.join(quotationsDir, `${quotationNumber}.pdf`);
+  const document = { html, data, path: outputPath, type: '' };
+  const options = { format: 'A4', orientation: 'portrait', border: '8mm', timeout: 60000 };
+
+  await pdf.create(document, options); // returns Promise
+  return outputPath;
 }
 
 // POST /api/generate-quotation/:rfqNo
-router.post("/generate-quotation/:rfqNo", (req, res) => {
+router.post("/generate-quotation/:rfqNo", async (req, res) => {
   const rfqNo = req.params.rfqNo;
 
   if (rfqQuotationMap[rfqNo]) {
@@ -157,16 +115,16 @@ router.post("/generate-quotation/:rfqNo", (req, res) => {
 
   const quotationNumber = generateQuotationNumber();
 
-  generatePDF(connection, quotationNumber, rfqNo, (err, pdfPath) => {
-    if (err) {
-      console.error("Failed to generate PDF:", err);
-      return res.status(500).json({ error: "Failed to generate quotation PDF" });
-    }
-
+  try {
+    await generatePDF(connection, quotationNumber, rfqNo);
     rfqQuotationMap[rfqNo] = quotationNumber;
     res.json({ quotationNumber });
-  });
+  } catch (err) {
+    console.error("Failed to generate PDF:", err);
+    res.status(500).json({ error: "Failed to generate quotation PDF" });
+  }
 });
+
 
 // GET /api/download-quotation-pdf/:quotationNumber
 router.get("/download-quotation-pdf/:quotationNumber", (req, res) => {
