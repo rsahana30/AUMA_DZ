@@ -33,6 +33,18 @@ if (!fs.existsSync(quotationsDir)) {
 
 // Dummy PDF generation - replace with actual PDF generation in production
 async function generatePDF(connection, quotationNumber, rfqNo) {
+
+    const Handlebars = require("handlebars");
+
+  // Register helper (safe for multiple calls)
+  if (!Handlebars.helpers.multiply) {
+    Handlebars.registerHelper("multiply", function (a, b) {
+      const numA = parseFloat(a) || 0;
+      const numB = parseFloat(b) || 0;
+      return (numA * numB).toFixed(2);
+    });
+  }
+
   const sql = `
     SELECT r.id, r.customer, r.valveType, r.quantity,
            COALESCE(pt.price, mt.price, 0) AS price,
