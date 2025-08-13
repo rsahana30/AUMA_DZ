@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
@@ -28,6 +28,10 @@ const RFQ = () => {
   const [mode, setMode] = useState(""); // manual or upload
   const [manualRow, setManualRow] = useState({});
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
+  const [tempExcelData, setTempExcelData] = useState([]);
+
 
   const expectedHeaders = [
     "Item",
@@ -304,57 +308,183 @@ const RFQ = () => {
 
           {/* Upload File Mode */}
           {mode === "upload" && (
-            <div className="mb-3" style={{ maxWidth: "220px" }}>
-              <input
-                type="file"
-                className="form-control"
-                accept=".xlsx, .xls"
-                style={{
-                  height: "38px",
-                  fontSize: "14px",
-                  borderRadius: "6px"
-                }}
-                onClick={(e) => (e.target.value = null)}
-                onChange={handleFileUpload}
-              />
-              {uploadedFile && (
-                <div className="mt-2 d-flex align-items-center gap-2">
-                  <span>• {uploadedFile.name}</span>
-                  <button className="btn btn-sm btn-outline-primary" onClick={handleDownloadFile}>
-                    <i className="bi bi-download" />
-                  </button>
-                  <button className="btn btn-sm btn-outline-danger" onClick={handleRemoveFile}>
-                    <i className="bi bi-trash" />
-                  </button>
+            <div className="mt-4">
+              <div className="card p-4 shadow-sm">
+                <h5 className="mb-3">Upload RFQ Excel File</h5>
+                <p>
+                  Download sample to see the required format.
+                  <a href="/sample.xlsx" download className="btn btn-link btn-sm ms-2">
+                    Download Sample
+                  </a>
+                </p>
+
+                {/* File Input */}
+                <div className="mb-3">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    className="form-control"
+                    ref={fileInputRef}
+                    onClick={(e) => (e.target.value = null)}
+                    onChange={handleFileUpload}
+                  />
                 </div>
-              )}
+
+                {/* Action Buttons */}
+                <div className="d-flex gap-2 mb-3">
+                  <button
+                    className="btn btn-primary"
+                    disabled={loading || excelData.length === 0}
+                  >
+                    {loading ? "Uploading..." : "Upload to Server"}
+                  </button>
+
+                  {excelData.length > 0 && (
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => {
+                        setExcelData([]);
+                        setUploadedFile(null);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Preview Table */}
+                {excelData.length > 0 && (
+                  <div className="table-responsive mt-3">
+                    <table className="table table-bordered table-sm w-100">
+                      <thead className="table-light">
+                        <tr>
+                          {Object.keys(excelData[0]).map((key) => (
+                            <th key={key}>{key}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {excelData.map((row, idx) => (
+                          <tr key={idx}>
+                            {Object.keys(row).map((col, cidx) => (
+                              <td key={cidx}>{row[col]}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
+
+
 
 
           {/* Manual Mode */}
           {mode === "manual" && (
-            <div className="mb-3">
-              <div className="row">
-                {expectedHeaders.map((h, idx) => (
-                  <div className="col-md-4 mb-2" key={idx}>
-                    <label className="form-label">{h}</label>
-                    <input
-                      type="text"
-                      name={h}
-                      className="form-control"
-                      value={manualRow[h] || ""}
-                      onChange={handleManualRowChange}
-                      placeholder={`Enter ${h}`}
-                    />
-                  </div>
-                ))}
-              </div>
-              <button className="btn btn-secondary mt-2" onClick={handleManualSave}>
-                Save Manual Data
-              </button>
-            </div>
-          )}
+  <div className="mb-3">
+    {/* RFQ-Level Fields */}
+    <h5 className="mb-3 text-primary fw-bold">RFQ Details</h5>
+    <div className="row">
+      {/* Customer */}
+      <div className="col-md-4 mb-2">
+        <label className="form-label fw-bold">{fieldLabels.customer}</label>
+        <select
+          className="form-select"
+          name="customer"
+          value={dropdowns.customer || ""}
+          onChange={handleDropdownChange}
+        >
+          <option value="">Select Customer</option>
+          {customerOptions.map((name, idx) => (
+            <option key={idx} value={name}>{name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Other RFQ-level fields */}
+      {["actuatorVoltage", "communication", "motorDuty", "actuatorSeries"].map((field) => (
+        <div className="col-md-4 mb-2" key={field}>
+          <label className="form-label fw-bold">{fieldLabels[field]}</label>
+          <input
+            type="text"
+            className="form-control"
+            name={field}
+            value={dropdowns[field] || ""}
+            onChange={handleDropdownChange}
+          />
+        </div>
+      ))}
+
+      {Object.keys(dropdownLabels).map((field) => (
+        <div className="col-md-4 mb-2" key={field}>
+          <label className="form-label fw-bold">{dropdownLabels[field]}</label>
+          <select
+            className="form-select"
+            name={field}
+            value={dropdowns[field] || ""}
+            onChange={handleDropdownChange}
+          >
+            <option value="">Select {dropdownLabels[field]}</option>
+            {predefinedValues[field].map((val, idx) => (
+              <option key={idx} value={val}>{val}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
+
+    <hr />
+
+    {/* Part-Level Fields */}
+    <h5 className="mb-3 text-primary fw-bold">Part Details</h5>
+    <div className="row">
+      {expectedHeaders.map((h, idx) => (
+        <div className="col-md-4 mb-2" key={idx}>
+          <label className="form-label">{h}</label>
+          <input
+            type="text"
+            name={h}
+            className="form-control"
+            value={manualRow[h] || ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              const updatedRow = { ...manualRow, [h]: value };
+
+              // Auto-calculate Calculated Torque
+              if (h === "Safety factor" || h === "Valve Torque (Nm)") {
+                const safety = parseFloat(
+                  h === "Safety factor" ? value : updatedRow["Safety factor"]
+                );
+                const torque = parseFloat(
+                  h === "Valve Torque (Nm)" ? value : updatedRow["Valve Torque (Nm)"]
+                );
+
+                if (!isNaN(safety) && !isNaN(torque)) {
+                  updatedRow["Calculated Torque"] = (safety * torque).toFixed(2);
+                } else {
+                  updatedRow["Calculated Torque"] = "";
+                }
+              }
+
+              setManualRow(updatedRow);
+            }}
+            placeholder={`Enter ${h}`}
+            readOnly={h === "Calculated Torque"} // user can't edit Calculated Torque
+          />
+        </div>
+      ))}
+    </div>
+
+    <button className="btn btn-secondary mt-2" onClick={handleManualSave}>
+      Save Manual Data
+    </button>
+  </div>
+)}
+
+
 
           {/* Fields + Table */}
           {dropdowns.customer && excelData.length > 0 && (
