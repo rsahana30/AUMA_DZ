@@ -3,9 +3,10 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import ExcelUploadMultiturnGarebox from "../ExcelUploadMultiturnGarebox";
+import ExcelUploadMultiturn from "../ExcelUploadMultiturnActuator";
+import ExcelUploadMultiturnActuator from "../ExcelUploadMultiturnActuator";
 
-function Multiturn() {
+function MultiturnActuator() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("manual");
 
@@ -140,10 +141,10 @@ function Multiturn() {
             </div>
           </form>
         )}
-        {activeTab === "excel" && <ExcelUploadMultiturnGarebox />}
+        {activeTab === "excel" && <ExcelUploadMultiturnActuator />}
       </div>
     </div>
   );
 }
 
-export default Multiturn;
+export default MultiturnActuator;

@@ -18,6 +18,8 @@ import Quotation from "./forms/Quotation";
 import Product from "./forms/product manage/product";
 import Partturn from "./forms/product manage/partturn";
 import Multiturn from "./forms/product manage/multiturn"; 
+import MultiturnActuator from "./forms/product manage/multiturnActuator"; // Assuming you have this component
+
 
 const App = () => (
   <Router>
@@ -40,9 +42,11 @@ const App = () => (
                   <Route path="/select-model/:rfqNo" element={<PrivateRoute><SelectModel /></PrivateRoute>} />
                   <Route path="/update-rfq/:rfqNo" element={<PrivateRoute><UpdateRFQ /></PrivateRoute>} />
                   <Route path="/quotation/:rfqNo" element={<PrivateRoute><Quotation /></PrivateRoute>} />
-                  <Route path="/product/partturn" element={<PrivateRoute><Partturn /></PrivateRoute>} />
+                  <Route path="/product/partturnGarebox" element={<PrivateRoute><Partturn /></PrivateRoute>} />
                   <Route path="/product" element={<PrivateRoute><Product/></PrivateRoute>} />
-                  <Route path="/product/multiturn" element={<PrivateRoute><Multiturn /></PrivateRoute>} />
+                  <Route path="/product/multiturnGarebox" element={<PrivateRoute><Multiturn /></PrivateRoute>} />
+                  <Route path="/product/multiturnActuator" element={<PrivateRoute><MultiturnActuator /></PrivateRoute>} />
+                  {/* Add more routes as needed */}
                 </Routes>
               </div>
             </div>

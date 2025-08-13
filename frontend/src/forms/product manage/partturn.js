@@ -3,9 +3,9 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import ExcelUploadPartturn from "../ExcelUploadPartturn";
+import ExcelUploadPartturnGarebox from "../ExcelUploadPartturnGarebox";
 
-function Partturn() {
+function PartturnGarebox() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("manual");
 
@@ -137,10 +137,10 @@ function Partturn() {
             </div>
           </form>
         )}
-        {activeTab === "excel" && <ExcelUploadPartturn />}
+        {activeTab === "excel" && <ExcelUploadPartturnGarebox />}
       </div>
     </div>
   );
 }
 
-export default Partturn;
+export default PartturnGarebox;

@@ -24,6 +24,24 @@ const Login = () => {
   return (
     <div className="container-fluid vh-100">
       <div className="row h-100">
+        {/* LEFT SIDE IMAGE */}
+        <div
+          className="col-lg-6 d-none d-lg-flex text-white justify-content-center align-items-center"
+          style={{
+            background: "linear-gradient(to bottom, #007bff, rgb(4, 0, 255))",
+          }}
+        >
+          <div className="text-center">
+            <img
+              src="https://www.auma.com/static/img/icons/auma_r_solutions_white_svg.svg"
+              alt="Login Illustration"
+              className="img-fluid p-3"
+              style={{ width: "25em", height: "auto" }}
+            />
+          </div>
+        </div>
+
+        {/* RIGHT SIDE LOGIN FORM */}
         <div className="col-lg-6 d-flex justify-content-center align-items-center">
           <div className="w-100" style={{ maxWidth: "450px" }}>
             <h2 className="text-center mb-4">Login</h2>
@@ -48,31 +66,13 @@ const Login = () => {
                   required
                 />
               </div>
-              <button
-                type="submit"
-                className="btn btn-primary w-100"
-              >
+              <button type="submit" className="btn btn-primary w-100">
                 Login
               </button>
             </form>
             <p className="text-center mt-3">
               Don't have an account? <a href="/signup">Sign Up</a>
             </p>
-          </div>
-        </div>
-        <div
-          className="col-lg-6 d-none d-lg-flex text-white justify-content-center align-items-center"
-          style={{
-            background: "linear-gradient(to bottom, #007bff,rgb(4, 0, 255))",
-          }}
-        >
-          <div className="text-center">
-            <img
-              src="https://www.auma.com/static/img/icons/auma_r_solutions_white_svg.svg"
-              alt="Login Illustration"
-              className="img-fluid p-3"
-              style={{ width: "25em", height: "auto" }}
-            />
           </div>
         </div>
       </div>

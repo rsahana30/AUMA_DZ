@@ -7,17 +7,20 @@ function Product() {
   const navigate = useNavigate();
 
   const options = [
-    { value: "partturn", label: "Partturn" },
-    { value: "multiturn", label: "Multiturn" }
+    { value: "partturn garebox", label: "Partturn Garebox" },
+    { value: "multiturn garebox", label: "Multiturn Garebox" },
+    { value: "multiturn actuator", label: "Multiturn Actuator" }
   ];
 
   const handleChange = (option) => {
     setSelected(option);
 
-    if (option?.value === "partturn") {
-      navigate("/product/partturn");
-    } else if (option?.value === "multiturn") {
-      navigate("/product/multiturn");
+    if (option?.value === "partturn garebox") {
+      navigate("/product/partturnGarebox");
+    } else if (option?.value === "multiturn garebox") {
+      navigate("/product/multiturnGarebox");
+    } else if (option?.value === "multiturn actuator") {
+      navigate("/product/multiturnActuator");
     }
   };
 
