@@ -7,21 +7,24 @@ const ExcelUpload = () => {
   const [excelData, setExcelData] = useState([]);
 
   // Headers must match these (based on sample.xlsx)
-  const expectedHeaders = [
-    "Item",
-    "Valve Type",
-    "Valve Tag No",
-    "Valve Size(Inch)",
-    "Valve Rating",
-    "Type of Duty (On-Off/Modulating)",
-    "Raising Stem or not",
-    "Valve Torque(Nm)",
-    "Valve Top Flange PCD (ISO)",
-    "Valve Stem Dia (mm)",
-    "Valve Mast (Nm)",
-    "Number of turns (for Gate and Globe valves)",
-    "quantity"
-  ];
+ const expectedHeaders = [
+  "Item",
+  "Valve Type",
+  "Valve Tag No.",
+  "Valve Size (Inch)",
+  "Valve Rating",
+  "Type of Duty (On-off / Modulating)",
+  "Raising Stem or Not",
+  "Valve Torque (Nm)",
+  "Safety factor",
+  "Calculated Torque",
+  "Valve Top Flange PCD (ISO)",
+  "Valve stem Dia (mm)",
+  "Valve MAST (Nm)",
+  "Number of Turns (for Gate and Globe valves)",
+  "Quantity"
+];
+
 
   // Normalize header: remove whitespace, lowercase, remove special characters
   const normalize = (str) =>
@@ -39,7 +42,7 @@ const ExcelUpload = () => {
       const data = new Uint8Array(evt.target.result);
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: "", range: 1 });
 
       if (json.length === 0) {
         toast.error("Excel file is empty.");

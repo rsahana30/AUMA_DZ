@@ -34,7 +34,7 @@ if (!fs.existsSync(quotationsDir)) {
 // Dummy PDF generation - replace with actual PDF generation in production
 async function generatePDF(connection, quotationNumber, rfqNo) {
 
-    const Handlebars = require("handlebars");
+  const Handlebars = require("handlebars");
 
   // Register helper (safe for multiple calls)
   if (!Handlebars.helpers.multiply) {
@@ -99,7 +99,7 @@ async function generatePDF(connection, quotationNumber, rfqNo) {
       customerAddress: customer.address,
       quotationref: quotationNumber,
       quotationdate: new Date().toLocaleDateString('en-GB'),
-      expirydate: new Date(Date.now() + 10*24*60*60*1000).toLocaleDateString('en-GB'),
+      expirydate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB'),
       items: mappedItems,
       total,
       assumptionText: '',
@@ -181,6 +181,7 @@ router.get('/rfqs', (req, res) => {
     res.json(results);
   });
 });
+
 router.post("/upload", async (req, res) => {
   const { user_id, submitted_by, manualFields, excelRows } = req.body;
 
@@ -216,7 +217,11 @@ router.post("/upload", async (req, res) => {
       const insertData = {
         rfq_no: rfqNo,
         customer: manualFields.customer,
-        safetyFactor: manualFields.safetyFactor,
+
+        // Excel se hi le rahe hain
+        safetyFactor: row["Safety factor"],
+        calculatedTorque: row["Calculated Torque"],
+
         actuatorVoltage: manualFields.actuatorVoltage,
         communication: manualFields.communication,
         motorDuty: manualFields.motorDuty,
@@ -229,17 +234,18 @@ router.post("/upload", async (req, res) => {
 
         item: row["Item"],
         valveType: row["Valve Type"],
-        valveTagNo: row["Valve Tag No"],
+        valveTagNo: row["Valve Tag No."],
         valveSize: row["Valve Size (Inch)"],
         valveRating: row["Valve Rating"],
         dutyType: row["Type of Duty (On-off / Modulating)"],
         raisingStem: row["Raising Stem or Not"],
         valveTorque: row["Valve Torque (Nm)"],
+
         topFlange: row["Valve Top Flange PCD (ISO)"],
         stemDia: row["Valve stem Dia (mm)"],
         mast: row["Valve MAST (Nm)"],
         numberOfTurns: row["Number of Turns (for Gate and Globe valves)"],
-        quantity: row["quantity"],
+        quantity: row["Quantity"],
 
         user_id: user_id,
         submitted_by: submitted_by,
@@ -480,7 +486,7 @@ router.post("/save-partturn", (req, res) => {
     });
   });
 });
- 
+
 // Save Multiturn Data
 router.post("/save-multiturn", (req, res) => {
   const {
