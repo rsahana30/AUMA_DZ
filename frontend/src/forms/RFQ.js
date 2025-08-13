@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import Select from "react-select";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -9,35 +10,42 @@ import { getToken, getUserFromToken } from "../utils/auth";
 const RFQ = () => {
   const [user, setUser] = useState(null);
   const token = getToken();
-  if (!token) {
-    window.location.href = "/login"; // Redirect to login if not authenticated
-  }
+  if (!token) window.location.href = "/login";
+
   useEffect(() => {
     if (token) {
       const userData = getUserFromToken();
       setUser(userData);
     }
   }, [token]);
+
   const [dropdowns, setDropdowns] = useState({});
   const [excelData, setExcelData] = useState([]);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [customerOptions, setCustomerOptions] = useState([]);
   const [showSelectModel, setShowSelectModel] = useState(false);
   const [currentRFQNo, setCurrentRFQNo] = useState(null);
+  const [mode, setMode] = useState(""); // manual or upload
+  const [manualRow, setManualRow] = useState({});
+  const [isEditing, setIsEditing] = useState(false);
 
   const expectedHeaders = [
-    "valve_size_(inch)",
-    "valve_rating",
-    "type_of_duty_(on-off_/_modulating)",
-    "raising_stem_or_not",
-    "valve_torque_(nm)",
-    "valve_top_flange_pcd_(iso)",
-    "valve_stem_dia_(mm)",
-    "valve_mast_(nm)",
-    "number_of_turns_(for_gate_and_globe_valves)",
-    "quantity"
+    "Item",
+    "Valve Type",
+    "Valve Tag No.",
+    "Valve Size (Inch)",
+    "Valve Rating",
+    "Type of Duty (On-off / Modulating)",
+    "Raising Stem or Not",
+    "Valve Torque (Nm)",
+    "Safety factor",
+    "Calculated Torque",
+    "Valve Top Flange PCD (ISO)",
+    "Valve stem Dia (mm)",
+    "Valve MAST (Nm)",
+    "Number of Turns (for Gate and Globe valves)",
+    "Quantity"
   ];
-
 
   const fieldLabels = {
     customer: "Customer",
@@ -83,7 +91,7 @@ const RFQ = () => {
     reader.onload = (evt) => {
       const workbook = XLSX.read(evt.target.result, { type: "binary" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", range: 1 });
 
       if (rows.length === 0) return toast.error("Excel sheet is empty");
 
@@ -92,19 +100,28 @@ const RFQ = () => {
       );
 
       const expectedTrimmed = expectedHeaders.map((key) =>
-        key.trim().toLowerCase()
+        key.trim().toLowerCase().replace(/\s+/g, "_")
       );
 
       const isSameFormat = expectedTrimmed.every((header) =>
         uploadedHeaders.includes(header)
       );
 
-      isSameFormat
-        ? toast.success("✅ Excel format is valid")
-        : toast.error("⚠️ Uploaded Excel does not match sample format");
+      if (!isSameFormat) {
+        toast.error("⚠️ Uploaded Excel does not match sample format");
+        return;
+      }
 
+      toast.success("✅ Excel format is valid");
       setExcelData(rows);
       setUploadedFile(file);
+
+      if (rows[0]["Safety factor"]) {
+        setDropdowns((prev) => ({
+          ...prev,
+          safetyFactor: rows[0]["Safety factor"]
+        }));
+      }
     };
     reader.readAsBinaryString(file);
   };
@@ -125,9 +142,30 @@ const RFQ = () => {
     }
   };
 
+  const handleManualRowChange = (e) => {
+    setManualRow({ ...manualRow, [e.target.name]: e.target.value });
+  };
+
+  const handleManualSave = () => {
+    const rowObj = {};
+    expectedHeaders.forEach((header) => {
+      rowObj[header] = manualRow[header] || "";
+    });
+    setExcelData([rowObj]);
+
+    if (manualRow["Safety factor"]) {
+      setDropdowns((prev) => ({
+        ...prev,
+        safetyFactor: manualRow["Safety factor"]
+      }));
+    }
+
+    toast.success("✅ Manual data added");
+  };
+
   const handleSave = async () => {
     if (!dropdowns.customer) return toast.error("Please select a customer");
-    if (!excelData.length) return toast.error("Please upload an Excel sheet");
+    if (!excelData.length) return toast.error("Please fill data");
 
     try {
       const payload = {
@@ -159,9 +197,8 @@ const RFQ = () => {
 
   const handleSimulate = async () => {
     if (!currentRFQNo) {
-      // Trigger save if RFQ not yet generated
       if (!dropdowns.customer) return toast.error("Please select a customer");
-      if (!excelData.length) return toast.error("Please upload an Excel sheet");
+      if (!excelData.length) return toast.error("Please fill data");
 
       try {
         const payload = {
@@ -188,9 +225,14 @@ const RFQ = () => {
         toast.error("❌ Server error");
       }
     } else {
-      // RFQ already exists, just show SelectModel
       setShowSelectModel(true);
     }
+  };
+
+  const handleTableChange = (e, rowIndex, colKey) => {
+    const newData = [...excelData];
+    newData[rowIndex][colKey] = e.target.value;
+    setExcelData(newData);
   };
 
 
@@ -200,8 +242,8 @@ const RFQ = () => {
         <div className="card-body">
           <h3 className="text-primary fw-bold mb-4">Request For Quotation</h3>
 
-          {/* Customer & Upload */}
           <div className="row">
+            {/* Customer */}
             <div className="col-md-6 mb-3">
               <label className="form-label fw-bold">{fieldLabels.customer}</label>
               <select
@@ -217,16 +259,65 @@ const RFQ = () => {
               </select>
             </div>
 
+            {/* Enter RFQ Details Mode */}
+            {/* Enter RFQ Details Mode */}
             <div className="col-md-6 mb-3">
-              <label className="form-label fw-bold">Upload RFQ (Excel)</label>
+              <label className="form-label fw-bold">Enter RFQ Details</label>
+              <Select
+                options={[
+                  { value: "manual", label: "Manual" },
+                  { value: "upload", label: "Upload File" }
+                ]}
+                onChange={(opt) => {
+                  setMode(opt.value);
+                  setExcelData([]);
+                  setUploadedFile(null);
+                  setManualRow({});
+                }}
+                placeholder="-- Select Mode --"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minHeight: "38px",
+                    fontSize: "14px",
+                    borderRadius: "6px"
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    width: "220px" // dropdown menu width
+                  }),
+                  option: (base, state) => ({
+                    ...base,
+                    width: "200px", // each option width
+                    backgroundColor: state.isSelected
+                      ? "#007bff"
+                      : state.isFocused
+                        ? "#e6f0ff"
+                        : "white",
+                    color: state.isSelected ? "white" : "black"
+                  })
+                }}
+              />
+            </div>
+
+          </div>
+
+          {/* Upload File Mode */}
+          {mode === "upload" && (
+            <div className="mb-3" style={{ maxWidth: "220px" }}>
               <input
                 type="file"
                 className="form-control"
                 accept=".xlsx, .xls"
+                style={{
+                  height: "38px",
+                  fontSize: "14px",
+                  borderRadius: "6px"
+                }}
                 onClick={(e) => (e.target.value = null)}
                 onChange={handleFileUpload}
               />
-              {uploadedFile ? (
+              {uploadedFile && (
                 <div className="mt-2 d-flex align-items-center gap-2">
                   <span>• {uploadedFile.name}</span>
                   <button className="btn btn-sm btn-outline-primary" onClick={handleDownloadFile}>
@@ -236,17 +327,36 @@ const RFQ = () => {
                     <i className="bi bi-trash" />
                   </button>
                 </div>
-              ) : (
-                <div className="mt-2">
-                  <small>
-                    Need a template? <a href="/sample.xlsx" download>Download sample file</a>
-                  </small>
-                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Manual Entry Fields */}
+
+          {/* Manual Mode */}
+          {mode === "manual" && (
+            <div className="mb-3">
+              <div className="row">
+                {expectedHeaders.map((h, idx) => (
+                  <div className="col-md-4 mb-2" key={idx}>
+                    <label className="form-label">{h}</label>
+                    <input
+                      type="text"
+                      name={h}
+                      className="form-control"
+                      value={manualRow[h] || ""}
+                      onChange={handleManualRowChange}
+                      placeholder={`Enter ${h}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn-secondary mt-2" onClick={handleManualSave}>
+                Save Manual Data
+              </button>
+            </div>
+          )}
+
+          {/* Fields + Table */}
           {dropdowns.customer && excelData.length > 0 && (
             <>
               <hr className="my-4" />
@@ -285,56 +395,79 @@ const RFQ = () => {
                 ))}
               </div>
 
-              {/* Excel Table */}
-              <div className="mt-4">
-                {/* <h5 className="fw-bold">Uploaded RFQ File</h5> */}
-                <div className="table-responsive">
-                  <table className="table table-bordered table-sm">
-                    <thead className="table-light">
-                      <tr>
-                        {Object.keys(excelData[0]).map((key, idx) => (
+              {/* Table */}
+              <div className="mt-4 table-responsive">
+                <table className="table table-bordered table-sm">
+                  <thead className="table-light">
+                    <tr>
+                      {Object.keys(excelData[0])
+                        .filter((key) => key !== "Safety factor" && key !== "Calculated Torque")
+                        .map((key, idx) => (
                           <th key={idx}>{key}</th>
                         ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {excelData.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        {Object.entries(row)
+                          .filter(([key]) => key !== "Safety factor" && key !== "Calculated Torque")
+                          .map(([colKey, val], colIdx) => (
+                            <td key={colIdx}>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={val}
+                                  className="form-control form-control-sm"
+                                  onChange={(e) => handleTableChange(e, rowIdx, colKey)}
+                                />
+                              ) : (
+                                val
+                              )}
+                            </td>
+                          ))}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {excelData.map((row, idx) => (
-                        <tr key={idx}>
-                          {Object.values(row).map((val, i) => <td key={i}>{val}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Action Buttons */}
+              {/* Buttons */}
               <div className="text-end mt-4">
+                {/* Edit Button */}
+                <button
+                  className="btn btn-warning px-4 me-3"
+                  onClick={() => setIsEditing(!isEditing)}
+                  disabled={!!currentRFQNo} // disable if RFQ is saved
+                >
+                  <i className={`bi ${isEditing ? "bi-check-lg" : "bi-pencil-square"} me-2`}></i>
+                  {isEditing ? "Save Edits" : "Edit"}
+                </button>
+
+                {/* Save Button */}
                 <button
                   className="btn btn-success px-4 me-3"
-                  onClick={handleSave}
-                  disabled={!!currentRFQNo}
+                  onClick={() => {
+                    setIsEditing(false); // lock table
+                    handleSave();
+                  }}
+                  disabled={!!currentRFQNo} // same as before
                 >
                   <i className="bi bi-save me-2"></i>Save
                 </button>
 
-                <button className="btn btn-primary px-4" onClick={handleSimulate} >
+                <button
+                  className="btn btn-primary px-4"
+                  onClick={handleSimulate}
+                >
                   <i className="bi bi-lightning-charge me-2"></i>Simulate
                 </button>
               </div>
             </>
           )}
 
-          {/* RFQ Number & SelectModel */}
-          {/* {currentRFQNo && (
-            <div className="alert alert-info mt-5 fs-5 fw-bold">
-              ✅ RFQ Number: <span className="text-primary">{currentRFQNo}</span>
-            </div>
-          )} */}
-
           {showSelectModel && currentRFQNo && (
             <div className="mt-4">
-              {/* <h5 className="fw-bold mb-3">Select Matching AUMA Models</h5> */}
               <SelectModel rfqNo={currentRFQNo} inline />
             </div>
           )}
