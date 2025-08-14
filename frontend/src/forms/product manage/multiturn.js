@@ -9,31 +9,48 @@ function Multiturn() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("manual");
 
-  const [formData, setFormData] = useState({
-    parent_id: "",
-    duty_class_name: "",
-    description: "",
-    valve_max_valve_torque: "",
-    valve_flange_iso5211: "",
-    valve_max_shaft_diameter: "",
-    type: "",
+  // ✅ Only required columns
+  const initialFormData = {
+    gearbox_type: "",
     gearbox_reduction_ratio: "",
+    multi_turn_actuators: "",
+    input_mounting_flange_en_iso_5210: "",
+    input_mounting_flange_din_3210: "",
+    permissible_weight_multi_turn_actuator: "",
     gearbox_factor: "",
-    gearbox_turns_90: "",
-    gearbox_input_shaft: "",
-    gearbox_input_mounting_flange: "",
-    gearbox_max_input_torques: "",
-    gearbox_weight: "",
-    gearbox_additional_weight_extension_flange: "",
-    gearbox_handwheel_diameter: "",
-    gearbox_manual_force: "",
-    valve_type: "",
-    protection_type: "",
-    painting: "",
-    price: ""
-  });
+    gearbox_max_input_nominal_torque_nm: "",
+    gearbox_max_input_modulating_torque_nm: "",
+    gearbox_input_shaft_standard_mm: "",
+    gearbox_input_shaft_option_mm: "",
+    gearbox_weight_kg: "",
+    valve_attachment_standard_en_iso_5210: "",
+    valve_attachment_option_din_3210: "",
+    max_valve_nominal_torque: "",
+    max_valve_modulating_torque: ""
+  };
 
+  const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
+
+  // ✅ Labels exactly as you provided
+  const fieldLabels = {
+    gearbox_type: "Gearbox Type",
+    gearbox_reduction_ratio: "Gearbox Reduction Ratio",
+    multi_turn_actuators: "Multi Turn Actuators",
+    input_mounting_flange_en_iso_5210: "Input mounting flange EN ISO 5210",
+    input_mounting_flange_din_3210: "Input mounting flange DIN 3210",
+    permissible_weight_multi_turn_actuator: "Permissible Weight Multi-turn Actuator",
+    gearbox_factor: "Gearbox Factor",
+    gearbox_max_input_nominal_torque_nm: "Gearbox Max Input Nominal Torque (Nm)",
+    gearbox_max_input_modulating_torque_nm: "Gearbox Max Input Modulating Torque (Nm)",
+    gearbox_input_shaft_standard_mm: "Gearbox Input Shaft Standard (mm)",
+    gearbox_input_shaft_option_mm: "Gearbox Input Shaft Option (mm)",
+    gearbox_weight_kg: "Gearbox Weight (kg)",
+    valve_attachment_standard_en_iso_5210: "Valve Attachment Standard EN ISO 5210",
+    valve_attachment_option_din_3210: "Valve Attachment Option DIN 3210",
+    max_valve_nominal_torque: "Max Valve Nominal Torque",
+    max_valve_modulating_torque: "Max Valve Modulating Torque"
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -42,42 +59,31 @@ function Multiturn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Check if all form fields are empty
+      const isEmpty = Object.values(formData).every(
+        (value) => value === "" || value === null
+      );
+    
+      if (isEmpty) {
+        toast.error("Please fill in at least one field before saving.");
+        return;
+      }
+
     setLoading(true);
+
+    
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/save-multiturn",
+        "http://localhost:5000/api/save-multiturn-garebox",
         formData
       );
       toast.success(res.data.message || "Saved successfully!");
-      setFormData({
-        parent_id: "",
-        duty_class_name: "",
-        description: "",
-        valve_max_valve_torque: "",
-        valve_flange_iso5211: "",
-        valve_max_shaft_diameter: "",
-        type: "",
-        gearbox_reduction_ratio: "",
-        gearbox_factor: "",
-        gearbox_turns_90: "",
-        gearbox_input_shaft: "",
-        gearbox_input_mounting_flange: "",
-        gearbox_max_input_torques: "",
-        gearbox_weight: "",
-        gearbox_additional_weight_extension_flange: "",
-        gearbox_handwheel_diameter: "",
-        gearbox_manual_force: "",
-        valve_type: "",
-        protection_type: "",
-        painting: "",
-        price: ""
-      });
+      setFormData(initialFormData); // ✅ Reset to empty
     } catch (err) {
       console.error("Error saving Multiturn:", err);
-      toast.error(
-        err.response?.data?.error || "Failed to save Multiturn"
-      );
+      toast.error(err.response?.data?.error || "Failed to save Multiturn");
     }
 
     setLoading(false);
@@ -86,7 +92,7 @@ function Multiturn() {
   return (
     <div className="container mt-4">
       <ToastContainer />
-      <h4>Multiturn Management</h4>
+      <h4>Multiturn Gearbox Management</h4>
 
       <button
         type="button"
@@ -99,7 +105,11 @@ function Multiturn() {
       <ul className="nav nav-tabs">
         <li className="nav-item">
           <button
-            className={`nav-link mb-3 ${activeTab === "manual" ? "active rounded border text-white bg-primary" : ""}`}
+            className={`nav-link mb-3 ${
+              activeTab === "manual"
+                ? "active rounded border text-white bg-primary"
+                : ""
+            }`}
             onClick={() => setActiveTab("manual")}
           >
             Manual Entry
@@ -107,7 +117,11 @@ function Multiturn() {
         </li>
         <li className="nav-item">
           <button
-            className={`nav-link mb-3 ${activeTab === "excel" ? "active rounded border text-white bg-primary" : ""}`}
+            className={`nav-link mb-3 ${
+              activeTab === "excel"
+                ? "active rounded border text-white bg-primary"
+                : ""
+            }`}
             onClick={() => setActiveTab("excel")}
           >
             Excel Upload
@@ -120,9 +134,7 @@ function Multiturn() {
           <form className="row g-3" onSubmit={handleSubmit}>
             {Object.keys(formData).map((field) => (
               <div className="col-md-6" key={field}>
-                <label className="form-label">
-                  {field.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                </label>
+                <label className="form-label">{fieldLabels[field]}</label>
                 <input
                   type="text"
                   className="form-control"
@@ -134,7 +146,11 @@ function Multiturn() {
             ))}
 
             <div className="col-12">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
                 {loading ? "Saving..." : "Save"}
               </button>
             </div>

@@ -7,15 +7,15 @@ import axios from "axios";
 // 🔹 Normalization: ignores case, spaces, punctuation, newlines
 const normalize = (str) =>
   String(str || "")
-    .replace(/\r?\n|\r/g, "")       // remove newlines
-    .replace(/-/g, "")              // remove hyphens
-    .replace(/[_]+/g, "")           // remove underscores
-    .replace(/\s+/g, "")            // remove spaces
-    .replace(/[^a-z0-9]/gi, "")     // keep only alphanumeric
+    .replace(/\r?\n|\r/g, "")
+    .replace(/-/g, "")
+    .replace(/[_]+/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/gi, "")
     .toLowerCase()
     .trim();
 
-// ✅ Required headers (readable format)
+// ✅ Required headers
 const VALID_HEADERS = [
   "Duty Class",
   "description",
@@ -34,8 +34,6 @@ const VALID_HEADERS = [
   "Gearbox_Handwheel Density [mm]",
   "Gearbox_Manual Force [N]"
 ];
-
-// Store normalized form for matching
 const VALID_HEADERS_NORMALIZED = VALID_HEADERS.map(normalize);
 
 const ExcelUploadPartturnGarebox = () => {
@@ -54,57 +52,47 @@ const ExcelUploadPartturnGarebox = () => {
       const wb = XLSX.read(bstr, { type: "binary" });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-      // Excel file's first row headers
+      // Read as array-of-arrays for header validation
+      const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
       const rawHeaders = jsonData[0] || [];
       const fileHeadersNormalized = rawHeaders.map(normalize);
 
-      // Check missing headers
+      // Validate headers
       const missingHeaders = VALID_HEADERS_NORMALIZED.filter(
         (vh) => !fileHeadersNormalized.includes(vh)
       );
-
       if (missingHeaders.length > 0) {
-        toast.error(
-          `❌ Invalid Excel File.`);
+        toast.error("❌ Invalid Excel File.");
         setFile(null);
         setExcelData([]);
         return;
       }
 
-      // Map messy Excel headers to clean required ones
+      // Map file headers → required headers
       const headerMap = {};
       fileHeadersNormalized.forEach((fh, idx) => {
         const matchIndex = VALID_HEADERS_NORMALIZED.indexOf(fh);
-        if (matchIndex !== -1) {
-          headerMap[rawHeaders[idx]] = VALID_HEADERS[matchIndex];
-        } else {
-          headerMap[rawHeaders[idx]] = rawHeaders[idx]; // keep original if not required
-        }
+        headerMap[rawHeaders[idx]] =
+          matchIndex !== -1 ? VALID_HEADERS[matchIndex] : rawHeaders[idx];
       });
 
-      // Convert to objects & rename keys
-      let dataObjects = XLSX.utils.sheet_to_json(ws, { defval: "" }).map((row) => {
+      // Keep empty cells & align columns strictly
+      const dataObjects = XLSX.utils.sheet_to_json(ws, {
+        header: rawHeaders,
+        range: 1, // skip header row
+        defval: ""
+      }).map((row) => {
         const newRow = {};
-        Object.keys(row).forEach((key) => {
-          const cleanKey = headerMap[key] || key;
-          newRow[cleanKey] = row[key];
-        });
-        return newRow;
-      });
-
-      // Remove empty columns
-      const filteredData = dataObjects.map((row) => {
-        const newRow = {};
-        Object.entries(row).forEach(([k, v]) => {
-          if (String(v).trim() !== "") newRow[k] = v;
+        rawHeaders.forEach((col) => {
+          const cleanKey = headerMap[col] || col;
+          newRow[cleanKey] = row[col];
         });
         return newRow;
       });
 
       setFile(selectedFile);
-      setExcelData(filteredData);
+      setExcelData(dataObjects);
       toast.success("✅ Valid Excel file selected!");
     };
     reader.readAsBinaryString(selectedFile);
@@ -122,7 +110,7 @@ const ExcelUploadPartturnGarebox = () => {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/upload-partturn-garebox",
+        "http://localhost:5000/api/upload-partturn-gearbox",
         formDataExcel,
         { headers: { "Content-Type": "multipart/form-data" } }
       );

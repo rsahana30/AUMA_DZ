@@ -69,22 +69,21 @@ const SelectModel = ({ rfqNo }) => {
   };
 
   // Fetch models when opening modal for changing/selecting model on a row
-  const fetchMatchingModels = async (item) => {
-    setSelectedItem(item);
-    try {
-      const res = await axios.post("http://localhost:5000/api/get-matching-models", {
-        valveType: item.valveType,
-        valveTorque: item.valveTorque,
-        safetyFactor: item.safetyFactor,
-        protection_type: item.protection_type || item.weatherproofType,
-        painting: item.painting,
-      });
-      setMatchingModels(res.data || []);
-      setShowModal(true);
-    } catch (err) {
-      alert("Error fetching matching models");
-    }
-  };
+const fetchMatchingModels = async (item) => {
+  setSelectedItem(item);
+  try {
+    const res = await axios.post("http://localhost:5000/api/get-matching-models", {
+      valveType: item.valveType,
+      dutyType: item.dutyType,
+      calculatedTorque: item.calculatedTorque
+    });
+    setMatchingModels(res.data || []);
+    setShowModal(true);
+  } catch (err) {
+    alert("Error fetching matching models");
+  }
+};
+
 
   // On selecting a model from modal
   const handleSelectModel = async (model) => {
@@ -154,15 +153,16 @@ const SelectModel = ({ rfqNo }) => {
       <h4>Select Models for RFQ: {rfqNo}</h4>
       <Table striped bordered>
         <thead>
-          <tr>
-            <th>AUMA Model(Actuator)</th>
-            <th>Valve Type</th>
-            <th>Quantity</th>
-            <th>Price</th>
-            <th>Total Price</th>
-            <th>Action</th>
-          </tr>
-        </thead>
+  <tr>
+    <th>Valve Type</th>
+    <th>Quantity</th>
+    <th>Gearbox Type</th>
+    <th>Reduction Ratio</th>
+    <th>Gearbox Factor</th>
+    <th>Action</th>
+  </tr>
+</thead>
+
         <tbody>
           {lineItems.map((item) => {
             const selectedModel = selectedModelsMap[item.id];
@@ -180,21 +180,22 @@ const SelectModel = ({ rfqNo }) => {
 
             return (
               <tr key={item.id}>
-                <td>{selectedModel?.type || item.type || "—"}</td>
-                <td>{item.valveType}</td>
-                <td>{item.quantity ?? "—"}</td>
-                <td>{price}</td>
-                <td>{totalPrice}</td>
-                <td>
-                  <Button
-                    variant="link"
-                    onClick={() => fetchMatchingModels(item)}
-                    title="Change or select model"
-                  >
-                    {(selectedModel || item.auma_model) ? " ? " : "Select ( ? )"}
-                  </Button>
-                </td>
-              </tr>
+  <td>{item.valveType}</td>
+  <td>{item.quantity ?? "—"}</td>
+  <td>{selectedModel?.type || item.gearbox_type || "—"}</td>
+  <td>{selectedModel?.reduction_ratio || item.gearbox_reduction_ratio || "—"}</td>
+  <td>{selectedModel?.factor || item.gearbox_factor || "—"}</td>
+  <td>
+    <Button
+      variant="link"
+      onClick={() => fetchMatchingModels(item)}
+      title="Change or select model"
+    >
+      {(selectedModel) ? " ? " : "Select ( ? )"}
+    </Button>
+  </td>
+</tr>
+
             );
           })}
         </tbody>
@@ -210,31 +211,32 @@ const SelectModel = ({ rfqNo }) => {
             <p>No matching models found.</p>
           ) : (
             <Table hover size="sm">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Valve Type</th>
-                  <th>Torque Max</th>
-                  <th>Price</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {matchingModels.map((m) => (
-                  <tr key={m.child_id}>
-                    <td>{m.type}</td>
-                    <td>{m.valve_type}</td>
-                    <td>{m.valve_max_valve_torque}</td>
-                    <td>{m.price}</td>
-                    <td>
-                      <Button size="sm" onClick={() => handleSelectModel(m)}>
-                        Select
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Gearbox Type</th>
+      <th>Reduction Ratio</th>
+      <th>Gearbox Factor</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {matchingModels.map((m) => (
+      <tr key={m.child_id}>
+        <td>{m.type}</td>
+        <td>{m.gearbox_type || "—"}</td>
+        <td>{m.reduction_ratio || "—"}</td>
+        <td>{m.factor || "—"}</td>
+        <td>
+          <Button size="sm" onClick={() => handleSelectModel(m)}>
+            Select
+          </Button>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</Table>
+
           )}
         </Modal.Body>
       </Modal>
