@@ -189,9 +189,16 @@ router.post("/upload", async (req, res) => {
     return res.status(400).json({ error: "Missing data" });
   }
 
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+  // Function to normalize Excel headers
+  const normalizeHeader = str =>
+    str
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ") // collapse multiple spaces
+      .replace(/[\u2010-\u2015]/g, "-"); // replace all dash-like characters with normal dash
 
-  // Fetch last rfq_no manually
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
   const prefix = `RFQ${today}`;
   const query = `SELECT rfq_no FROM rfqs WHERE rfq_no LIKE '${prefix}%' ORDER BY rfq_no DESC LIMIT 1`;
 
@@ -208,20 +215,24 @@ router.post("/upload", async (req, res) => {
     }
 
     const rfqNo = `${prefix}${newNumber}`;
-
-    // Now insert all rows with this rfqNo
     let insertCount = 0;
     let hasError = false;
 
-    excelRows.forEach((row, index) => {
+    excelRows.forEach((row) => {
+      // Find the duty type key regardless of header formatting
+      const dutyTypeKey = Object.keys(row).find(
+        k => normalizeHeader(k) === normalizeHeader("Type of Duty (On-off / Modulating)")
+      );
+
       const insertData = {
         rfq_no: rfqNo,
         customer: manualFields.customer,
 
-        // Excel se hi le rahe hain
+        // From Excel
         safetyFactor: row["Safety factor"],
         calculatedTorque: row["Calculated Torque"],
 
+        // From manual fields
         actuatorVoltage: manualFields.actuatorVoltage,
         communication: manualFields.communication,
         motorDuty: manualFields.motorDuty,
@@ -237,7 +248,7 @@ router.post("/upload", async (req, res) => {
         valveTagNo: row["Valve Tag No."],
         valveSize: row["Valve Size (Inch)"],
         valveRating: row["Valve Rating"],
-        dutyType: row["Type of Duty (On-off / Modulating)"],
+        dutyType: dutyTypeKey ? row[dutyTypeKey] : null,
         raisingStem: row["Raising Stem or Not"],
         valveTorque: row["Valve Torque (Nm)"],
 
@@ -247,11 +258,11 @@ router.post("/upload", async (req, res) => {
         numberOfTurns: row["Number of Turns (for Gate and Globe valves)"],
         quantity: row["Quantity"],
 
-        user_id: user_id,
-        submitted_by: submitted_by,
+        user_id,
+        submitted_by
       };
 
-      connection.query("INSERT INTO rfqs SET ?", insertData, (insertErr, result) => {
+      connection.query("INSERT INTO rfqs SET ?", insertData, (insertErr) => {
         if (insertErr) {
           console.error("🔥 Error inserting row:", insertErr);
           if (!hasError) {
@@ -268,6 +279,7 @@ router.post("/upload", async (req, res) => {
     });
   });
 });
+
 
 router.get("/customers", (req, res) => {
   connection.query("SELECT name FROM customers", (err, results) => {
@@ -300,58 +312,50 @@ router.get("/rfq-details/:rfqNo", (req, res) => {
 
 // 2. Get matching models for given valve row details (callback style)
 router.post("/get-matching-models", (req, res) => {
-  const {
-    valveType,
-    valveTorque,
-    safetyFactor,
-    protection_type,
-    painting,
-  } = req.body;
+  const { valveType, dutyType, calculatedTorque } = req.body;
 
-  const torqueVal = parseFloat(valveTorque) || 0;
-  const sfVal = parseFloat(safetyFactor) || 1;
-  const requiredTorque = torqueVal * sfVal;
-
-  // Decide table name
-  let tableName = "";
-  const lowerType = (valveType || "").toLowerCase();
-
-  if (lowerType === "ball" || lowerType === "butterfly") {
-    tableName = "partturn";
-  } else if (lowerType === "gate" || lowerType === "penstock") {
-    tableName = "multiturn";
-  } else {
-    return res.status(400).json({ error: "Unknown valve type" });
+  if (!valveType || !dutyType || calculatedTorque == null) {
+    return res.status(400).json({ error: "Missing required parameters" });
   }
 
+  const lowerValve = valveType.toLowerCase();
+
+  // Step 1: Only allow ball / butterfly for partturn_gearbox
+  if (lowerValve !== "ball" && lowerValve !== "butterfly") {
+    return res.json([]); // No gearbox for other valve types for now
+  }
+
+  // Step 2: Duty class mapping
+  let dutyClass = "";
+  if (dutyType.toLowerCase() === "on-off") {
+    dutyClass = "Duty class 1";
+  } else if (dutyType.toLowerCase() === "modulating") {
+    dutyClass = "Duty class 2";
+  } else {
+    return res.status(400).json({ error: "Unsupported duty type" });
+  }
+
+  // Step 3: SQL query for partturn_gearbox
   const sql = `
     SELECT 
-      type, 
-      valve_type, 
-      protection_type, 
-      painting, 
-      price, 
-      child_id, 
-      valve_max_valve_torque
-    FROM ${tableName}
-    WHERE valve_type = ?
-      AND protection_type = ?
-      AND painting = ?
-      AND valve_max_valve_torque >= ?
+      GearboxType AS type,
+      GearboxReductionRatio AS reduction_ratio,
+      GearboxFactor AS factor
+    FROM partturn_gearbox
+    WHERE DutyClass = ?
+      AND MaxValveTorque_Nm > ?
+    ORDER BY MaxValveTorque_Nm ASC
   `;
 
-  connection.query(
-    sql,
-    [valveType, protection_type, painting, requiredTorque],
-    (err, results) => {
-      if (err) {
-        console.error("Error fetching matching models:", err);
-        return res.status(500).json({ error: "Failed to fetch matching models" });
-      }
-      res.json(results);
+  connection.query(sql, [dutyClass, calculatedTorque], (err, results) => {
+    if (err) {
+      console.error("Error fetching matching gearboxes:", err);
+      return res.status(500).json({ error: "Failed to fetch gearboxes" });
     }
-  );
+    res.json(results || []);
+  });
 });
+
 
 
 // 3. Update selected model for a valve row (callback style)
