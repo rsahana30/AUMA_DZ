@@ -1,97 +1,362 @@
-// product.js (Express Router)
-
+// backend/routes/upload.js
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const xlsx = require("xlsx");
-const path = require("path");
 const fs = require("fs");
+const connection = require("../db/connection");
 
-// Setup multer for file upload
-const upload = multer({
-  dest: "uploads/", // Temporary folder
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const filetypes = /xlsx|xls/;
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    if (extname) {
-      return cb(null, true);
+const upload = multer({ dest: "uploads/" });
+
+// ----------------- UTILS -----------------
+
+// Normalize headers: remove spaces, punctuation, lowercase
+const normalize = (str) =>
+  String(str || "")
+    .normalize("NFKD")
+    .replace(/\r?\n|\r/g, " ")
+    .replace(/[^a-z0-9]+/gi, "")
+    .toLowerCase()
+    .trim();
+
+// Levenshtein distance for fuzzy matching
+const levenshtein = (a, b) => {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
     }
-    cb(new Error("Only Excel files are allowed"));
-  },
-});
+  }
+  return dp[m][n];
+};
+
+// Fuzzy match header
+const findBestMatch = (excelHeaders, targetCol) => {
+  targetCol = normalize(targetCol);
+  let bestCol = null, bestDist = Infinity;
+
+  excelHeaders.forEach(h => {
+    const dist = levenshtein(normalize(h), targetCol);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestCol = h;
+    }
+  });
+
+  return bestDist <= 3 ? bestCol : null;
+};
+
+// Prepare data for DB
+const prepareData = (rows, dbColumns, headerMap) =>
+  rows.map((row) =>
+    dbColumns.map((col) => {
+      const excelKey = headerMap[col];
+      let val = excelKey ? row[excelKey] : null;
+      if (val === undefined || val === null || val === "" || val === "-" || val === "–") return null;
+      if (typeof val === "string") {
+        val = val.replace(",", ".").trim();
+        const num = parseFloat(val);
+        return isNaN(num) ? val : num;
+      }
+      return val;
+    })
+  );
+
+// ----------------- PARTTURN GEARBOX -----------------
+
+const PARTTURN_DB_COLUMNS = [
+  "DutyClass",
+  "Description",
+  "MaxValveTorque_Nm",
+  "ValveAttachmentFlange_ISO5211",
+  "ValveAttachment_MaxShaftDiameter_mm",
+  "GearboxType",
+  "GearboxReductionRatio",
+  "GearboxFactor",
+  "GearboxTurnsFor90",
+  "GearboxInputShaft_mm",
+  "GearboxInputMountingFlange",
+  "GearboxMaxInputTorque_Nm",
+  "GearboxWeight_kg",
+  "GearboxAdditionalWeight_ExtensionFlange",
+  "GearboxHandwheelDensity_mm",
+  "GearboxManualForce_N",
+];
+
+const PARTTURN_ALIASES = {
+  "dutyclass": "DutyClass",
+  "description": "Description",
+  "maxvalvetorquetonm": "MaxValveTorque_Nm",
+  "valveattachmentflangeaccordingtoeniso5211": "ValveAttachmentFlange_ISO5211",
+  "valveattachementmaxshaftdiametermm": "ValveAttachment_MaxShaftDiameter_mm",
+  "gearboxtype": "GearboxType",
+  "gearboxreductionratio": "GearboxReductionRatio",
+  "gearboxfactor": "GearboxFactor",
+  "gearboxturnsfor90": "GearboxTurnsFor90",
+  "gearboxinputshaftmm": "GearboxInputShaft_mm",
+  "gearboxinputmountingflangeformultiturnactuator": "GearboxInputMountingFlange",
+  "gearboxmaxinputtorquesnm": "GearboxMaxInputTorque_Nm",
+  "gearboxweightkg": "GearboxWeight_kg",
+  "gearboxadditionalweightextensionflange": "GearboxAdditionalWeight_ExtensionFlange",
+  "gearboxhandwheeldensitymm": "GearboxHandwheelDensity_mm",
+  "gearboxmanualforcen": "GearboxManualForce_N",
+};
 
 router.post("/upload-partturn-garebox", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
-    // Read Excel file
     const workbook = xlsx.readFile(req.file.path);
-    const sheetName = workbook.SheetNames[0];
-    const sheetData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-    // Remove temp file
+    const rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
     fs.unlinkSync(req.file.path);
+    if (!rows.length) return res.status(400).json({ message: "Excel file is empty" });
 
-    res.json({
-      message: "File uploaded successfully",
-      data: sheetData,
+    const excelHeaders = Object.keys(rows[0]);
+    const normalizedExcelHeaders = {};
+    excelHeaders.forEach((h) => (normalizedExcelHeaders[normalize(h)] = h));
+
+    const headerMap = {};
+    PARTTURN_DB_COLUMNS.forEach((col) => {
+      const aliasKey = Object.keys(PARTTURN_ALIASES).find((k) => PARTTURN_ALIASES[k] === col);
+      headerMap[col] = normalizedExcelHeaders[aliasKey] || normalizedExcelHeaders[normalize(col)] || findBestMatch(col, excelHeaders);
     });
-  } catch (error) {
-    console.error("Error reading Excel:", error);
-    res.status(500).json({ message: "Failed to process Excel file" });
+
+    const cleanedData = prepareData(rows, PARTTURN_DB_COLUMNS, headerMap);
+    const sql = `INSERT INTO Partturn_Gearbox (${PARTTURN_DB_COLUMNS.join(", ")}) VALUES ?`;
+    connection.query(sql, [cleanedData], (err, result) => {
+      if (err) return res.status(500).json({ message: "Database insert failed", error: err });
+      res.json({ message: `✅ Uploaded successfully.` });
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to process Excel file", error: err.message });
   }
 });
 
+// ----------------- MULTITURN GEARBOX -----------------
 
-// POST /api/upload-multiturn
+const MULTITURN_DB_COLUMNS = [
+  "GearboxType",
+  "GearboxReductionRatio",
+  "ActuatorType",
+  "InputMountingFlange_EN_ISO_5210",
+  "InputMountingFlange_DIN_3210",
+  "PermissibleWeight_MultiTurnActuator",
+  "GearboxFactor",
+  "GearboxMaxInputNominalTorque_Nm",
+  "GearboxMaxInputModulatingTorque_Nm",
+  "GearboxInputShaft_Standard_mm",
+  "GearboxInputShaft_Option_mm",
+  "GearboxWeight_kg",
+  "ValveAttachment_Standard_EN_ISO_5210",
+  "ValveAttachment_Option_DIN_3210",
+  "MaxValveNominalTorque_Nm",
+  "MaxValveModulatingTorque_Nm"
+];
+
+const MULTITURN_ALIASES = {
+  "gearboxtype": "GearboxType",
+  "gearboxreductionratio": "GearboxReductionRatio",
+  "aumamultiturnactuators": "ActuatorType",
+  "inputmountingflangeenis05210": "InputMountingFlange_EN_ISO_5210",
+  "inputmountingflangedin3210": "InputMountingFlange_DIN_3210",
+  "permissibleweightmultiturnactuator": "PermissibleWeight_MultiTurnActuator",
+  "gearboxfactor": "GearboxFactor",
+  "gearboxmaxinputnominaltorquenm": "GearboxMaxInputNominalTorque_Nm",
+  "gearboxmaxinputmodulatingtorquenm": "GearboxMaxInputModulatingTorque_Nm",
+  "gearboxinputshaftstandardmm": "GearboxInputShaft_Standard_mm",
+  "gearboxinputshaftoptionmm": "GearboxInputShaft_Option_mm",
+  "gearboxweightkg": "GearboxWeight_kg",
+  "valveattachmentstandardeniso5210": "ValveAttachment_Standard_EN_ISO_5210",
+  "valveattachmentoptionoptiondin3210": "ValveAttachment_Option_DIN_3210",
+  "maxvalvenominaltorque": "MaxValveNominalTorque_Nm",
+  "maxvalvemodulatingtorque": "MaxValveModulatingTorque_Nm"
+};
+
 router.post("/upload-multiturn-garebox", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
-    // Read Excel file
     const workbook = xlsx.readFile(req.file.path);
-    const sheetName = workbook.SheetNames[0];
-    const sheetData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-    // Remove temp file
+    const rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
     fs.unlinkSync(req.file.path);
+    if (!rows.length) return res.status(400).json({ message: "Excel file is empty" });
 
-    res.json({
-      message: "File uploaded successfully",
-      data: sheetData,
+    const excelHeaders = Object.keys(rows[0]);
+    const normalizedExcelHeaders = {};
+    excelHeaders.forEach((h) => (normalizedExcelHeaders[normalize(h)] = h));
+
+    const headerMap = {};
+    MULTITURN_DB_COLUMNS.forEach((col) => {
+      const aliasKey = Object.keys(MULTITURN_ALIASES).find((k) => MULTITURN_ALIASES[k] === col);
+      headerMap[col] = normalizedExcelHeaders[aliasKey] || normalizedExcelHeaders[normalize(col)] || findBestMatch(col, excelHeaders);
     });
-  } catch (error) {
-    console.error("Error reading Excel:", error);
-    res.status(500).json({ message: "Failed to process Excel file" });
+
+    const cleanedData = prepareData(rows, MULTITURN_DB_COLUMNS, headerMap);
+    const sql = `INSERT INTO Multiturn_Gearbox (${MULTITURN_DB_COLUMNS.join(", ")}) VALUES ?`;
+    connection.query(sql, [cleanedData], (err, result) => {
+      if (err) return res.status(500).json({ message: "Database insert failed", error: err });
+      res.json({ message: `✅ Uploaded successfully.` });
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to process Excel file", error: err.message });
   }
 });
+
+// ----------------- MULTITURN ACTUATOR -----------------
+
+const ACTUATOR_DB_COLUMNS = [
+  "ActuatorType",
+  "OutputSpeedRpm_50Hz",
+  "OutputSpeedRpm_60Hz",
+  "TorqueRangeMin_Nm",
+  "TorqueRange_S2_15min_Max_Nm",
+  "TorqueRange_S2_30min_Max_Nm",
+  "RunTorque_S2_15min_Max_Nm",
+  "RunTorque_S2_30min_Max_Nm",
+  "NumberOfStartsPerHour",
+  "ValveAttachmentStandard_ISO5210",
+  "ValveAttachmentOption_DIN3210",
+  "ValveAttachmentMaxDensityRisingStem_mm",
+  "HandwheelDensity_mm",
+  "HandwheelReductionRatio",
+  "Weight_kg"
+];
+
+const ACTUATOR_ALIASES = {
+  "actuatortype": "ActuatorType",
+  "outputspeedrpm50hz": "OutputSpeedRpm_50Hz",
+  "outputspeedrpm60hz": "OutputSpeedRpm_60Hz",
+  "torquerangemin": "TorqueRangeMin_Nm",
+  "torqueranges215minmaxnm": "TorqueRange_S2_15min_Max_Nm",
+  "torqueranges230minmaxnm": "TorqueRange_S2_30min_Max_Nm",
+  "runtorques215minmaxnm": "RunTorque_S2_15min_Max_Nm",
+  "runtorques230minmaxnm": "RunTorque_S2_30min_Max_Nm",
+  "numberofstartsstartsmax1h": "NumberOfStartsPerHour",
+  "numberofstartsperhour": "NumberOfStartsPerHour",
+  "valveattachmentstandardeniso5210": "ValveAttachmentStandard_ISO5210",
+  "valveattachmentoptiondin3210": "ValveAttachmentOption_DIN3210",
+  "valveattachmentmaxdensityrisingstemmm": "ValveAttachmentMaxDensityRisingStem_mm",
+  "handwheeldensitymm": "HandwheelDensity_mm",
+  "handwheelreductionratio": "HandwheelReductionRatio",
+  "weight approx. [kg]": "Weight_kg",
+"weightapproxkg": "Weight_kg",
+"weightkg": "Weight_kg",
+"weightapprox(kg)": "Weight_kg"
+
+};
+
+// ----------------- UPLOAD ROUTE -----------------
 
 router.post("/upload-multiturn-actuator", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
-    // Read Excel file
     const workbook = xlsx.readFile(req.file.path);
-    const sheetName = workbook.SheetNames[0];
-    const sheetData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-    // Remove temp file
+    const rows = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
     fs.unlinkSync(req.file.path);
 
-    res.json({
-      message: "File uploaded successfully",
-      data: sheetData,
+    if (!rows.length) return res.status(400).json({ message: "Excel file is empty" });
+
+    const excelHeaders = Object.keys(rows[0]);
+
+    // Normalize Excel headers
+    const normalizedExcelHeaders = {};
+    excelHeaders.forEach(h => normalizedExcelHeaders[normalize(h)] = h);
+
+    // Map DB columns to Excel headers
+    const headerMap = {};
+    ACTUATOR_DB_COLUMNS.forEach(col => {
+      const aliasKey = Object.keys(ACTUATOR_ALIASES).find(k => ACTUATOR_ALIASES[k] === col);
+      // 1️⃣ Alias
+      if (aliasKey) {
+        const normalizedAlias = normalize(aliasKey);
+        if (normalizedExcelHeaders[normalizedAlias]) {
+          headerMap[col] = normalizedExcelHeaders[normalizedAlias];
+          return;
+        }
+      }
+      // 2️⃣ Normalized DB column
+      if (normalizedExcelHeaders[normalize(col)]) {
+        headerMap[col] = normalizedExcelHeaders[normalize(col)];
+        return;
+      }
+      // 3️⃣ Fuzzy match
+      let bestDist = Infinity;
+      let bestMatch = null;
+      excelHeaders.forEach(h => {
+        const dist = levenshtein(normalize(h), normalize(col));
+        if (dist < bestDist && dist <= 3) {
+          bestDist = dist;
+          bestMatch = h;
+        }
+      });
+      if (bestMatch) {
+        headerMap[col] = bestMatch;
+        return;
+      }
+      // 4️⃣ Not found
+      headerMap[col] = null;
     });
-  } catch (error) {
-    console.error("Error reading Excel:", error);
-    res.status(500).json({ message: "Failed to process Excel file" });
+
+    const missingColumns = ACTUATOR_DB_COLUMNS.filter(col => !headerMap[col]);
+    if (missingColumns.length) console.warn("Missing Excel columns:", missingColumns);
+
+    // Prepare data
+    const cleanedData = rows.map(row => {
+      return ACTUATOR_DB_COLUMNS.map(col => {
+        const excelKey = headerMap[col];
+        let val = excelKey ? row[excelKey] : null;
+        if (val === undefined || val === null || val === "" || val === "–") return null;
+
+        val = String(val).trim();
+
+        // TEXT columns
+        if (["ActuatorType","ValveAttachmentStandard_ISO5210","ValveAttachmentOption_DIN3210",
+             "ValveAttachmentMaxDensityRisingStem_mm","HandwheelReductionRatio"].includes(col)) 
+          return val;
+
+        // INTEGER columns
+        if (["NumberOfStartsPerHour","TorqueRangeMin_Nm","TorqueRange_S2_15min_Max_Nm",
+             "TorqueRange_S2_30min_Max_Nm","RunTorque_S2_15min_Max_Nm","RunTorque_S2_30min_Max_Nm",
+             "HandwheelDensity_mm"].includes(col))
+          return val ? Math.round(parseFloat(val.replace(",", "."))) : null;
+
+        // FLOAT / REAL columns
+        if (["OutputSpeedRpm_50Hz","OutputSpeedRpm_60Hz","Weight_kg"].includes(col)) {
+    if (!val || val === "–") return null;
+
+    // Remove all non-digit, non-dot, non-comma chars
+    val = val.replace(/[^\d,.-]/g, "").trim();
+
+    // Replace comma with dot
+    val = val.replace(",", ".");
+
+    // Parse as float
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? null : parsed;
+}
+
+
+        return val;
+      });
+    });
+
+    // Filter empty rows
+    const filteredData = cleanedData.filter(row => row.some(cell => cell !== null));
+    if (!filteredData.length) return res.status(400).json({ message: "No valid data to insert" });
+
+    const sql = `INSERT INTO Multiturn_Actuator (${ACTUATOR_DB_COLUMNS.join(", ")}) VALUES ?`;
+    connection.query(sql, [filteredData], (err, result) => {
+      if (err) return res.status(500).json({ message: "Database insert failed", error: err });
+      res.json({ message: `✅ Uploaded successfully.` });
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to process Excel file", error: err.message });
   }
 });
 

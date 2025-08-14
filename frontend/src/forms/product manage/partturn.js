@@ -83,7 +83,7 @@ function PartturnGarebox() {
   return (
     <div className="container mt-4">
       <ToastContainer />
-      <h4>Partturn Management</h4>
+      <h4>Partturn Garebox Management</h4>
 
       <button
         type="button"
