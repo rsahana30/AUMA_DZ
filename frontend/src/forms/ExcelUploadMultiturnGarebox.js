@@ -41,44 +41,59 @@ const ExcelUploadMultiturnGarebox = () => {
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (!selectedFile) return;
+  const selectedFile = e.target.files[0];
+  if (!selectedFile) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: "binary" });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const bstr = evt.target.result;
+    const wb = XLSX.read(bstr, { type: "binary" });
+    const wsname = wb.SheetNames[0];
+    const ws = wb.Sheets[wsname];
+    const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-      // Normalize file headers
-      const fileHeaders = jsonData[0]
-        ?.filter((h) => h != null && String(h).trim() !== "")
-        .map((h) => normalize(h).replace(/\s+/g, "")); // remove spaces after normalize
+    // Normalize file headers
+    const fileHeaders = jsonData[0]
+      ?.filter((h) => h != null && String(h).trim() !== "")
+      .map((h) => normalize(h).replace(/\s+/g, "")); // remove spaces after normalize
 
-      const validHeadersNormalized = VALID_HEADERS.map((h) =>
-        normalize(h).replace(/\s+/g, "")
-      );
+    const validHeadersNormalized = VALID_HEADERS.map((h) =>
+      normalize(h).replace(/\s+/g, "")
+    );
 
-      // Find missing headers
-      const missingHeaders = validHeadersNormalized.filter(
-        (vh) => !fileHeaders.includes(vh)
-      );
+    // Find missing headers
+    const missingHeaders = validHeadersNormalized.filter(
+      (vh) => !fileHeaders.includes(vh)
+    );
 
-      if (missingHeaders.length > 0) {
-        toast.error(`❌ Invalid Excel File`);
-        setFile(null);
-        setExcelData([]);
-        return;
-      }
+    if (missingHeaders.length > 0) {
+      toast.error(`❌ Invalid Excel File`);
+      setFile(null);
+      setExcelData([]);
+      return;
+    }
 
-      setFile(selectedFile);
-      setExcelData(XLSX.utils.sheet_to_json(ws, { defval: "" }));
-      toast.success("✅ Valid Excel file selected!");
-    };
-    reader.readAsBinaryString(selectedFile);
+    // Convert to JSON with objects
+    const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    // Remove empty columns (columns where all rows are empty)
+    const cleanedData = rawData.map((row) => {
+      const newRow = {};
+      Object.keys(row).forEach((key) => {
+        const allEmpty = rawData.every(
+          (r) => r[key] === null || r[key] === undefined || String(r[key]).trim() === ""
+        );
+        if (!allEmpty) newRow[key] = row[key];
+      });
+      return newRow;
+    });
+
+    setFile(selectedFile);
+    setExcelData(cleanedData);
+    toast.success("✅ Valid Excel file selected!");
   };
+  reader.readAsBinaryString(selectedFile);
+};
 
   const handleFileUpload = async () => {
     if (!file) {
