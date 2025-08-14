@@ -22,7 +22,7 @@ const VALID_HEADERS = [
   "Weight approx (kg)",
 ];
 
-// === Helper functions ===
+// Normalize header function
 function normalizeHeader(str) {
   const tokens = String(str || "")
     .normalize("NFKD")
@@ -41,6 +41,7 @@ function normalizeHeader(str) {
   return { spaced: dedup.join(" "), nospace: dedup.join("") };
 }
 
+// Levenshtein distance
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (m === 0) return n;
@@ -73,7 +74,6 @@ const ExcelUploadMultiturnActuator = () => {
   const [excelData, setExcelData] = useState([]);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -99,38 +99,33 @@ const ExcelUploadMultiturnActuator = () => {
           .map((h) => normalizeHeader(h).nospace) || [];
 
         const expectedKeys = VALID_HEADERS.map((h) => normalizeHeader(h).nospace);
-
         const missing = expectedKeys.filter((expKey) => !hasHeader(expKey, fileHeaderRow));
+
         if (missing.length > 0) {
           const missingReadable = missing.map((mk) => {
             const idx = expectedKeys.indexOf(mk);
             return idx >= 0 ? VALID_HEADERS[idx] : mk;
           });
-          toast.error(`❌ Invalid Excel File`);
+          toast.error(`❌ Invalid Excel File. Missing headers: ${missingReadable.join(", ")}`);
           setFile(null);
           setExcelData([]);
           return;
         }
 
-        // Remove _EMPTY columns here
-       // Remove columns where all rows are empty
-const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" });
-const cleanedData = rawData.map(row => {
-  const newRow = {};
-  Object.keys(row).forEach(key => {
-    const allEmpty = rawData.every(r => String(r[key] || "").trim() === "");
-    if (!allEmpty) {
-      newRow[key] = row[key];
-    }
-  });
-  return newRow;
-});
-
+        // Remove empty columns
+        const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const cleanedData = rawData.map(row => {
+          const newRow = {};
+          Object.keys(row).forEach(key => {
+            const allEmpty = rawData.every(r => String(r[key] || "").trim() === "");
+            if (!allEmpty) newRow[key] = row[key];
+          });
+          return newRow;
+        });
 
         setFile(selectedFile);
         setExcelData(cleanedData);
-        setShowPreview(false);
-        toast.success("✅ Valid Excel file selected");
+        toast.success("✅ Excel file loaded successfully. Preview below.");
       } catch (err) {
         console.error("Error reading Excel:", err);
         toast.error("Failed to read the Excel file.");
@@ -148,11 +143,12 @@ const cleanedData = rawData.map(row => {
     const formDataExcel = new FormData();
     formDataExcel.append("file", file);
     try {
-      const res = await axios.post("http://localhost:5000/api/upload-multiturn-actuator", formDataExcel, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await axios.post(
+        "http://localhost:5000/api/upload-multiturn-actuator",
+        formDataExcel,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
       toast.success(res.data.message || "File uploaded successfully!");
-      setShowPreview(true); // Now show preview after successful upload
     } catch (err) {
       console.error(err);
       toast.error("Upload failed");
@@ -164,7 +160,6 @@ const cleanedData = rawData.map(row => {
   const handleClear = () => {
     setExcelData([]);
     setFile(null);
-    setShowPreview(false);
     if (fileInputRef.current) fileInputRef.current.value = null;
   };
 
@@ -205,7 +200,7 @@ const cleanedData = rawData.map(row => {
 
       <ToastContainer />
 
-      {showPreview && excelData.length > 0 && (
+      {excelData.length > 0 && (
         <div className="mt-4 table-responsive">
           <h5>Preview Data</h5>
           <table className="table table-bordered">
