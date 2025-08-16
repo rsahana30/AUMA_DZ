@@ -1,256 +1,55 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Table, Button, Modal, Spinner } from "react-bootstrap";
 
-const SelectModel = ({ rfqNo }) => {
-  const [lineItems, setLineItems] = useState([]);
+const SelectModel = ({ rfqNo, inline }) => {
+  const [modelData, setModelData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [matchingModels, setMatchingModels] = useState([]);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [selectedModelsMap, setSelectedModelsMap] = useState({});
-  const [quotationNumber, setQuotationNumber] = useState(null);
-  const [loadingQuotation, setLoadingQuotation] = useState(false);
 
-  // Load RFQ items on mount or when rfqNo changes
   useEffect(() => {
     if (!rfqNo) return;
     setLoading(true);
+
     axios
-      .get(`http://localhost:5000/api/rfq-details/${rfqNo}`)
+      .get(`http://localhost:5000/api/select-model/${rfqNo}`)
       .then((res) => {
-        setLineItems(res.data);
-        setLoading(false);
-        // After loading line items, set default models for those without a selected model
-        autoSelectDefaultModels(res.data);
+        setModelData(res.data);
       })
       .catch((err) => {
-        alert("Failed to load RFQ rows");
+        console.error("Error fetching model data", err);
+      })
+      .finally(() => {
         setLoading(false);
       });
   }, [rfqNo]);
 
-  // Auto-select first matching model for line items missing selectedModel
-  const autoSelectDefaultModels = async (items) => {
-    // Filter items needing default selection: no selectedModel in map AND no auma_model assigned
-    const itemsNeedingSelection = items.filter(
-      (item) => !selectedModelsMap[item.id] && (!item.auma_model || item.auma_model === "")
-    );
+  if (loading) return <p>Loading...</p>;
 
-    if (itemsNeedingSelection.length === 0) return;
-
-    for (const item of itemsNeedingSelection) {
-      try {
-        const res = await axios.post("http://localhost:5000/api/get-matching-models", {
-          valveType: item.valveType,
-          valveTorque: item.valveTorque,
-          safetyFactor: item.safetyFactor,
-          protection_type: item.protection_type || item.weatherproofType,
-          painting: item.painting,
-        });
-
-        const firstModel = res.data?.[0];
-        if (firstModel) {
-          // Update backend with default selected model
-          await axios.put(`http://localhost:5000/api/update-valve-row/${item.id}`, {
-            selectedModel: firstModel,
-          });
-
-          // Update local UI state immediately
-          setSelectedModelsMap((prev) => ({
-            ...prev,
-            [item.id]: firstModel,
-          }));
-        }
-      } catch (error) {
-        console.error("Error auto-selecting default model for item:", item.id, error);
-      }
-    }
-  };
-
-  // Fetch models when opening modal for changing/selecting model on a row
-const fetchMatchingModels = async (item) => {
-  setSelectedItem(item);
-  try {
-    const res = await axios.post("http://localhost:5000/api/get-matching-models", {
-      valveType: item.valveType,
-      dutyType: item.dutyType,
-      calculatedTorque: item.calculatedTorque
-    });
-    setMatchingModels(res.data || []);
-    setShowModal(true);
-  } catch (err) {
-    alert("Error fetching matching models");
+  if (!modelData.length) {
+    return <p>No matching gearbox found.</p>;
   }
-};
-
-
-  // On selecting a model from modal
-  const handleSelectModel = async (model) => {
-    if (!selectedItem) return;
-
-    try {
-      await axios.put(`http://localhost:5000/api/update-valve-row/${selectedItem.id}`, {
-        selectedModel: model,
-      });
-
-      // Update local state and close modal
-      setSelectedModelsMap((prev) => ({
-        ...prev,
-        [selectedItem.id]: model,
-      }));
-      setShowModal(false);
-      setSelectedItem(null);
-
-      // Refresh line items to get any updates from backend
-      const res = await axios.get(`http://localhost:5000/api/rfq-details/${rfqNo}`);
-      setLineItems(res.data);
-    } catch (err) {
-      alert("Failed to assign model");
-    }
-  };
-
-  // Check if all models are selected (either from map or auma_model present)
-  const allModelsSelected = lineItems.every(
-    (item) => selectedModelsMap[item.id] || (item.auma_model && item.auma_model !== "")
-  );
-
-  // Handle convert to quotation button click and download PDF automatically
-  const handleConvertToQuotation = async () => {
-    if (!rfqNo) return;
-
-    setLoadingQuotation(true);
-    try {
-      // First generate quotation number
-      const res = await axios.post(`http://localhost:5000/api/generate-quotation/${rfqNo}`);
-      const { quotationNumber: qno } = res.data;
-      setQuotationNumber(qno);
-      alert(`Quotation Number generated: ${qno}`);
-
-      // Then download the PDF (make sure your backend supports this endpoint)
-      const pdfRes = await axios.get(`http://localhost:5000/api/download-quotation-pdf/${qno}`, {
-        responseType: "blob",
-      });
-
-      const url = window.URL.createObjectURL(new Blob([pdfRes.data], { type: "application/pdf" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `quotation_${qno}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-    } catch (err) {
-      alert("Error generating quotation or downloading PDF");
-      console.error(err);
-    }
-    setLoadingQuotation(false);
-  };
-
-  if (loading) return <Spinner animation="border" />;
 
   return (
-    <div>
-      <h4>Select Models for RFQ: {rfqNo}</h4>
-      <Table striped bordered>
-        <thead>
-  <tr>
-    <th>Valve Type</th>
-    <th>Quantity</th>
-    <th>Gearbox Type</th>
-    <th>Reduction Ratio</th>
-    <th>Gearbox Factor</th>
-    <th>Action</th>
-  </tr>
-</thead>
-
-        <tbody>
-          {lineItems.map((item) => {
-            const selectedModel = selectedModelsMap[item.id];
-            let price = "-";
-            let totalPrice = "-";
-            let modelDisplay = <em>Not selected</em>;
-
-            if (selectedModel) {
-              price = selectedModel.price;
-              totalPrice = (item.quantity || 1) * price;
-              modelDisplay = selectedModel.child_id;
-            } else if (item.auma_model) {
-              modelDisplay = item.auma_model;
-            }
-
-            return (
-              <tr key={item.id}>
-  <td>{item.valveType}</td>
-  <td>{item.quantity ?? "—"}</td>
-  <td>{selectedModel?.type || item.gearbox_type || "—"}</td>
-  <td>{selectedModel?.reduction_ratio || item.gearbox_reduction_ratio || "—"}</td>
-  <td>{selectedModel?.factor || item.gearbox_factor || "—"}</td>
-  <td>
-    <Button
-      variant="link"
-      onClick={() => fetchMatchingModels(item)}
-      title="Change or select model"
-    >
-      {(selectedModel) ? " ? " : "Select ( ? )"}
-    </Button>
-  </td>
-</tr>
-
-            );
-          })}
-        </tbody>
-      </Table>
-
-      {/* Model selection Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Select Matching Model</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {matchingModels.length === 0 ? (
-            <p>No matching models found.</p>
-          ) : (
-            <Table hover size="sm">
-  <thead>
-    <tr>
-      <th>Type</th>
-      <th>Gearbox Type</th>
-      <th>Reduction Ratio</th>
-      <th>Gearbox Factor</th>
-      <th>Action</th>
-    </tr>
-  </thead>
-  <tbody>
-    {matchingModels.map((m) => (
-      <tr key={m.child_id}>
-        <td>{m.type}</td>
-        <td>{m.gearbox_type || "—"}</td>
-        <td>{m.reduction_ratio || "—"}</td>
-        <td>{m.factor || "—"}</td>
-        <td>
-          <Button size="sm" onClick={() => handleSelectModel(m)}>
-            Select
-          </Button>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</Table>
-
-          )}
-        </Modal.Body>
-      </Modal>
-
-      {/* Convert to Quotation Button only */}
-      <div className="mt-3">
-        <Button
-          onClick={handleConvertToQuotation}
-          disabled={!allModelsSelected || loadingQuotation}
-          variant="primary"
+    <div className={inline ? "flex flex-col gap-2" : "p-4 border rounded-lg"}>
+      <h3 className="text-lg font-bold mb-2">Selected Gearbox Model</h3>
+      {modelData.map((item) => (
+        <div
+          key={item.id}
+          className="border p-3 rounded-lg shadow-sm bg-white"
         >
-          {loadingQuotation ? "Converting..." : "Convert to Quotation"}
-        </Button>
-      </div>
+          <p><strong>RFQ No:</strong> {item.rfq_no}</p>
+          <p><strong>Valve Type:</strong> {item.valveType}</p>
+          <p><strong>Quantity:</strong> {item.quantity}</p>
+          <p><strong>Calculated Torque:</strong> {item.calculatedTorque}</p>
+          <p><strong>Actuator :</strong> {item.actuatorSeries}</p>
+          {/* <p><strong>Actuator Type (from multiturn_actuator):</strong> {item.ActuatorType}</p> */}
+          <p><strong>AUMA Electric Actuator :</strong> {item.actuatorSeries+ " + " + "AC" + " + "+ item.GearboxType}</p>
+          <p><strong>Input Torque:</strong> {item.calculatedTorque/item.GearboxFactor}</p>
+          <p><strong>Gearbox Reduction Ratio:</strong> {item.GearboxReductionRatio}</p>
+          <p><strong>Factor:</strong> {item.GearboxFactor}</p>
+          <p><strong>Gearbox Type:</strong> {item.GearboxType}</p>
+           <p><strong>Max Allowable Stem Dia :</strong> {item.maximum_allowable_stem_dia}</p>
+        </div>
+      ))}
     </div>
   );
 };
